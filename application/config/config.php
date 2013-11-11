@@ -360,3 +360,5 @@ $config['proxy_ips'] = '';
 
 /* End of file config.php */
 /* Location: ./application/config/config.php */
+
+require_once(WEBROOT.'/env/'.$_SERVER['HTTP_HOST'].'/config.php');

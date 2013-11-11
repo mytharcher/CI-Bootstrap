@@ -67,3 +67,5 @@ $db['default']['stricton'] = FALSE;
 
 /* End of file database.php */
 /* Location: ./application/config/database.php */
+
+require_once(WEBROOT.'/env/'.$_SERVER['HTTP_HOST'].'/database.php');
