@@ -1,0 +1,8 @@
+<IfModule dir_module>
+    DirectoryIndex index.html index.php
+</IfModule>
+
+RewriteEngine on
+
+RewriteCond %{REQUEST_URI} !^/(.*\.html|index\.php|assets|robots\.txt|test\.php|test/|$|#.*$)
+RewriteRule ^(.*)$ /index.php/$1
