@@ -5,4 +5,4 @@
 RewriteEngine on
 
 RewriteCond %{REQUEST_URI} !^/(.*\.html|index\.php|assets|robots\.txt|test\.php|test/|$|#.*$)
-RewriteRule ^(.*)$ /index.php/$1
+RewriteRule ^(.*)$ /index.php/$1 [L]
