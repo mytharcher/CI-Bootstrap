@@ -117,3 +117,4 @@ $autoload['model'] = array();
 
 $autoload['libraries'][] = 'session';
 $autoload['libraries'][] = 'parser';
+$autoload['libraries'][] = 'form_validation';
