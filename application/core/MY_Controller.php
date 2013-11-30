@@ -5,22 +5,23 @@ class MY_Controller extends CI_Controller {
 		parent::__construct();
 	}
 
-	protected function send_mail($options) {
-		$this->load->library( 'email' );
-
-		$this->email->initialize( $config['mail'] );
+	protected function send_mail($to, $template, $data) {
+		$config = $this->config->item('mail');
+		$this->load->library('email', $config);
+		// var_dump($config);
 		
-		$this->email->from( $config['mail']['smtp_user'], $config['mail']['sender_name'] );
-		$this->email->to( $options['to'] );
-		
-		$this->email->subject( $options['subject'] );
-		$this->email->message( $options['message'] );
+		$this->email->from( $config['smtp_account'], $config['sender_name'] );
+		$this->email->to( $to );
+		$subject = $this->parser->parse($template.'.title.tpl', $data, TRUE);
+		$content = $this->parser->parse($template.'.tpl', $data, TRUE);
+		$this->email->subject( $subject );
+		$this->email->message( $content );
 		
 		return $this->email->send();
 	}
 }
 
-class JSON_Controller extends CI_Controller {
+class JSON_Controller extends MY_Controller {
 
 	var $session_data;
 	var $json_data;
@@ -90,6 +91,7 @@ class JSON_Controller extends CI_Controller {
 		return TRUE;
 	}
 
+	// 验证输入。错误码：1
 	protected function _check_input() {
 		$result = $this->form_validation->run();
 		if ($result === FALSE) {
@@ -99,6 +101,7 @@ class JSON_Controller extends CI_Controller {
 		return $result;
 	}
 
+	// 验证登录状态。错误码：2
 	protected function _check_session() {
 		if (!$this->session_data) {
 			$this->_set_status(2);
@@ -107,6 +110,7 @@ class JSON_Controller extends CI_Controller {
 		return TRUE;
 	}
 
+	// 验证操作权限。错误码：3
 	protected function _check_permission() {
 		$this->load->model('Administrator_model', 'account');
 
@@ -130,4 +134,7 @@ class JSON_Controller extends CI_Controller {
 		$this->_set_status(3);
 		return FALSE;
 	}
+
+	// 错误码：5，服务器或数据库其他错误，未捕获的异常等
+	// 错误码：6，邮件发送失败
 }

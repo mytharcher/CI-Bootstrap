@@ -358,6 +358,12 @@ $config['rewrite_short_tags'] = FALSE;
 $config['proxy_ips'] = '';
 
 
+$config['mail'] = array();
+$config['mail']['protocol'] = 'smtp';
+$config['mail']['charset'] = 'utf-8';
+$config['mail']['wordwrap'] = FALSE;
+$config['mail']['sender_name'] = '['.$_SERVER['HTTP_HOST'].']';
+
 /* End of file config.php */
 /* Location: ./application/config/config.php */
 
