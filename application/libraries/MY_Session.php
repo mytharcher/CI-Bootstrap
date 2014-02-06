@@ -99,7 +99,7 @@ class MY_Session {
 		$this->_set_cookie(md5($sessid));
 	}
 
-	function sess_query () {
+	function query () {
 		// Must use DB
 		if ($this->sess_use_database === FALSE) {
 			return FALSE;
@@ -127,7 +127,7 @@ class MY_Session {
 		return $query->row();
 	}
 
-	function sess_get () {
+	function get ($auto_update = FALSE) {
 		// Must use DB
 		if (! $this->sess_use_database) {
 			return FALSE;
@@ -141,18 +141,22 @@ class MY_Session {
 			return FALSE;
 		}
 
-		$session = $this->sess_query();
+		$session = $this->query();
 
 		if ($session === FALSE) {
 			return FALSE;
 		}
 
 		if ($session->last_activity + $this->sess_expiration < $this->now) {
-			$this->sess_destroy();
+			$this->destroy();
 			return FALSE;
 		}
 
-		return json_decode($row->userdata);
+		if ($auto_update) {
+			$this->update();
+		}
+
+		return json_decode($session->user_data, true);
 	}
 
 	// --------------------------------------------------------------------
@@ -163,7 +167,7 @@ class MY_Session {
 	 * @access	public
 	 * @return	void
 	 */
-	function sess_update($data = array()) {
+	function update($data = NULL) {
 		// Must use DB
 		if ($this->sess_use_database === FALSE) {
 			return;
@@ -171,12 +175,17 @@ class MY_Session {
 
 		$token = $this->token_get();
 
+		$session_record = array(
+			'last_activity' => $this->now
+		);
+
+		if (isset($data)) {
+			$session_record['user_data'] = json_encode($data);
+		}
+
 		// Run the update query
 		$this->CI->db->where('session_id', $token);
-		$this->CI->db->update($this->sess_table_name, array(
-			'last_activity' => $this->now,
-			'user_data' => json_encode($data)
-		));
+		$this->CI->db->update($this->sess_table_name, $session_record);
 	}
 
 	// --------------------------------------------------------------------
@@ -187,7 +196,7 @@ class MY_Session {
 	 * @access	public
 	 * @return	void
 	 */
-	function sess_create($data = array()) {
+	function create($data = array()) {
 		// Must use DB
 		if ($this->sess_use_database === FALSE) {
 			return;
@@ -212,12 +221,16 @@ class MY_Session {
 	 * @access	public
 	 * @return	void
 	 */
-	function sess_destroy()
+	function destroy($id = NULL)
 	{
 		$token = $this->token_get();
 		// Kill the session DB row
-		if ($this->sess_use_database === TRUE && $token) {
-			$this->CI->db->where('session_id', $token);
+		if ($this->sess_use_database === TRUE && ($id || $token)) {
+			if ($id) {
+				$this->CI->db->like('user_data', '"id":"'.$id.'"');
+			} else if ($token) {
+				$this->CI->db->where('session_id', $token);
+			}
 			$this->CI->db->delete($this->sess_table_name);
 		}
 	}

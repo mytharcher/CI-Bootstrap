@@ -69,7 +69,7 @@ $config['url_suffix'] = '';
 | than english.
 |
 */
-$config['language']	= 'zh-cn';
+$config['language']	= 'zh-CN';
 
 /*
 |--------------------------------------------------------------------------
@@ -279,7 +279,7 @@ $config['cookie_secure']	= FALSE;
 | COOKIE data is encountered
 |
 */
-$config['global_xss_filtering'] = TRUE;
+$config['global_xss_filtering'] = FALSE;
 
 /*
 |--------------------------------------------------------------------------
@@ -357,6 +357,12 @@ $config['rewrite_short_tags'] = FALSE;
 */
 $config['proxy_ips'] = '';
 
+
+$config['mail'] = array();
+$config['mail']['protocol'] = 'smtp';
+$config['mail']['charset'] = 'utf-8';
+$config['mail']['wordwrap'] = FALSE;
+$config['mail']['sender_name'] = '['.$_SERVER['HTTP_HOST'].']';
 
 /* End of file config.php */
 /* Location: ./application/config/config.php */
