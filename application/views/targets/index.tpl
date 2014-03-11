@@ -5,6 +5,6 @@
 
 <div id="body">{$body}</div>
 
-{include file="footer.tpl"}
+{include file="partials/footer.tpl"}
 
 {/block}

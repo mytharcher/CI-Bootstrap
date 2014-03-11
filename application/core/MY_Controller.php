@@ -32,11 +32,6 @@ class Page_Controller extends MY_Controller {
 
 	function __construct() {
 		parent::__construct();
-
-		$this->load->model('Stat_model', 'stat');
-		$this->stat->add_pv();
-
-		$this->load->model($this->main_model, 'model');
 	}
 
 	protected function read_relation($id, $model, $full = FALSE) {

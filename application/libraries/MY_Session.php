@@ -22,7 +22,7 @@ class MY_Session {
 	var $sess_expire_on_close		= FALSE;
 	var $sess_match_ip				= FALSE;
 	var $sess_match_useragent		= TRUE;
-	var $sess_cookie_name			= 'ci_session';
+	var $sess_cookie_name			= 'Session';
 	var $cookie_expiration			= 0;
 	var $cookie_path				= '';
 	var $cookie_domain				= '';
@@ -107,14 +107,14 @@ class MY_Session {
 
 		$token = $this->token_get();
 
-		$this->CI->db->where('session_id', $token);
+		$this->CI->db->where('id', $token);
 
 		if ($this->sess_match_ip == TRUE) {
-			$this->CI->db->where('ip_address', $this->CI->input->ip_address());
+			$this->CI->db->where('ip', $this->CI->input->ip_address());
 		}
 
 		if ($this->sess_match_useragent == TRUE) {
-			$this->CI->db->where('user_agent', substr($this->CI->input->user_agent(), 0, 120));
+			$this->CI->db->where('userAgent', substr($this->CI->input->user_agent(), 0, 120));
 		}
 
 		$query = $this->CI->db->get($this->sess_table_name);
@@ -176,15 +176,15 @@ class MY_Session {
 		$token = $this->token_get();
 
 		$session_record = array(
-			'last_activity' => $this->now
+			'lastActivity' => $this->now
 		);
 
 		if (isset($data)) {
-			$session_record['user_data'] = json_encode($data);
+			$session_record['userData'] = json_encode($data);
 		}
 
 		// Run the update query
-		$this->CI->db->where('session_id', $token);
+		$this->CI->db->where('id', $token);
 		$this->CI->db->update($this->sess_table_name, $session_record);
 	}
 
@@ -203,11 +203,11 @@ class MY_Session {
 		}
 
 		$session = array(
-			'session_id'	=> $this->token_get(),
-			'ip_address'	=> $this->CI->input->ip_address(),
-			'user_agent'	=> substr($this->CI->input->user_agent(), 0, 120),
-			'last_activity'	=> $this->now,
-			'user_data'		=> json_encode($data)
+			'id'	=> $this->token_get(),
+			'ip'	=> $this->CI->input->ip_address(),
+			'userAgent'	=> substr($this->CI->input->user_agent(), 0, 120),
+			'lastActivity'	=> $this->now,
+			'userData'		=> json_encode($data)
 		);
 
 		$this->CI->db->query($this->CI->db->insert_string($this->sess_table_name, $session));
@@ -227,9 +227,9 @@ class MY_Session {
 		// Kill the session DB row
 		if ($this->sess_use_database === TRUE && ($id || $token)) {
 			if ($id) {
-				$this->CI->db->like('user_data', '"id":"'.$id.'"');
+				$this->CI->db->like('userData', '"id":"'.$id.'"');
 			} else if ($token) {
-				$this->CI->db->where('session_id', $token);
+				$this->CI->db->where('id', $token);
 			}
 			$this->CI->db->delete($this->sess_table_name);
 		}
@@ -304,7 +304,7 @@ class MY_Session {
 		{
 			$expire = $this->now - $this->sess_expiration;
 
-			$this->CI->db->where("last_activity < {$expire}");
+			$this->CI->db->where("lastActivity < {$expire}");
 			$this->CI->db->delete($this->sess_table_name);
 
 			log_message('debug', 'Session garbage collection performed.');

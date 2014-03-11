@@ -4,5 +4,5 @@
 
 RewriteEngine on
 
-RewriteCond %{REQUEST_URI} !^/(.*\.html|index\.php|assets|robots\.txt|test\.php|test/|$|#.*$)
-RewriteRule ^(.*)$ /index.php/$1 [L]
+RewriteCond %{REQUEST_URI} !^/(.*\.html|index\.php|assets|plugins|robots\.txt|test\.php|test/|git-hook\.php|$|#.*$)
+RewriteRule ^(.*)$ /index.php?/$1 [L]
