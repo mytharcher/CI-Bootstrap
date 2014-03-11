@@ -4,5 +4,7 @@
 
 RewriteEngine on
 
+RewriteRule ^git\-hook\.php$ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization},L]
+
 RewriteCond %{REQUEST_URI} !^/(.*\.html|index\.php|assets|plugins|robots\.txt|test\.php|test/|git-hook\.php|$|#.*$)
 RewriteRule ^(.*)$ /index.php?/$1 [L]
