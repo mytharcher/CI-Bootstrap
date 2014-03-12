@@ -1,6 +1,6 @@
 <?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
 
-class Index extends CI_Controller {
+class Index extends MY_Controller {
 
 	function __construct() {
 		parent::__construct();
@@ -8,14 +8,10 @@ class Index extends CI_Controller {
 
 	public function index()
 	{
-		// $this->load->view('index');
-
-		// Load the template from the views directory
-		$data = array(
+		$this->render("targets/index.tpl", array(
 			'title' => 'PHP Bootstrap',
 			'body' => 'Hello world!'
-		);
-		// var_dump($data);
-		$this->parser->parse("targets/index.tpl", $data);
+		));
 	}
+	
 }
