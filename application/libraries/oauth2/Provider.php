@@ -173,7 +173,6 @@ abstract class OAuth2_Provider
 		);
 		
 		$params = array_merge($params, $this->params);
-		
 		redirect($this->url_authorize().'?'.http_build_query($params));
 	}
 

@@ -22,7 +22,7 @@ class MY_Session {
 	var $sess_expire_on_close		= FALSE;
 	var $sess_match_ip				= FALSE;
 	var $sess_match_useragent		= TRUE;
-	var $sess_cookie_name			= 'Session';
+	var $sess_cookie_name			= 'token';
 	var $cookie_expiration			= 0;
 	var $cookie_path				= '';
 	var $cookie_domain				= '';
@@ -31,6 +31,7 @@ class MY_Session {
 	var $gc_probability				= 5;
 	var $CI;
 	var $now;
+	var $user_data;
 
 	/**
 	 * Session Constructor
@@ -72,10 +73,8 @@ class MY_Session {
 			$this->cookie_expiration = (60*60*24*365*2);
 		}
 
-		// Run the Session routine. If a token doesn't exist we'll
-		// create a new one.
-		if ( ! $this->token_get()) {
-			$this->token_set();
+		if (!$this->sess_read(TRUE)) {
+			$this->sess_create();
 		}
 
 		// Delete expired sessions if necessary
@@ -95,8 +94,10 @@ class MY_Session {
 		while (strlen($sessid) < 32) {
 			$sessid .= mt_rand(0, mt_getrandmax());
 		}
+		$token = md5($sessid);
+		$this->_set_cookie($token);
 
-		$this->_set_cookie(md5($sessid));
+		return $token;
 	}
 
 	function query () {
@@ -127,18 +128,17 @@ class MY_Session {
 		return $query->row();
 	}
 
-	function get ($auto_update = FALSE) {
+	function sess_read ($auto_update = FALSE) {
 		// Must use DB
 		if (! $this->sess_use_database) {
 			return FALSE;
 		}
 
 		$token = $this->token_get();
-
-		// No cookie?  Goodbye cruel world!...
-		if ($token === FALSE) {
-			log_message('debug', 'A session cookie was not found.');
-			return FALSE;
+		// Run the Session routine. If a token doesn't exist we'll
+		// create a new one.
+		if (!$token) {
+			$token = $this->token_set();
 		}
 
 		$session = $this->query();
@@ -147,16 +147,17 @@ class MY_Session {
 			return FALSE;
 		}
 
-		if ($session->last_activity + $this->sess_expiration < $this->now) {
-			$this->destroy();
+		if ($session->lastActivity + $this->sess_expiration < $this->now) {
+			$this->sess_destroy();
 			return FALSE;
 		}
 
 		if ($auto_update) {
-			$this->update();
+			$this->sess_write();
 		}
 
-		return json_decode($session->user_data, true);
+		$this->user_data = json_decode($session->userData, true);
+		return $session;
 	}
 
 	// --------------------------------------------------------------------
@@ -167,7 +168,11 @@ class MY_Session {
 	 * @access	public
 	 * @return	void
 	 */
-	function update($data = NULL) {
+	function sess_write($data = NULL) {
+		if (isset($data)) {
+			$this->set_userdata($data);
+		}
+
 		// Must use DB
 		if ($this->sess_use_database === FALSE) {
 			return;
@@ -178,10 +183,8 @@ class MY_Session {
 		$session_record = array(
 			'lastActivity' => $this->now
 		);
-
-		if (isset($data)) {
-			$session_record['userData'] = json_encode($data);
-		}
+		
+		$session_record['userData'] = json_encode($this->user_data);
 
 		// Run the update query
 		$this->CI->db->where('id', $token);
@@ -196,7 +199,7 @@ class MY_Session {
 	 * @access	public
 	 * @return	void
 	 */
-	function create($data = array()) {
+	function sess_create($data = NULL) {
 		// Must use DB
 		if ($this->sess_use_database === FALSE) {
 			return;
@@ -211,6 +214,10 @@ class MY_Session {
 		);
 
 		$this->CI->db->query($this->CI->db->insert_string($this->sess_table_name, $session));
+
+		$this->user_data = $data;
+
+		return $session;
 	}
 
 	// --------------------------------------------------------------------
@@ -221,7 +228,7 @@ class MY_Session {
 	 * @access	public
 	 * @return	void
 	 */
-	function destroy($id = NULL)
+	function sess_destroy($id = NULL)
 	{
 		$token = $this->token_get();
 		// Kill the session DB row
@@ -233,6 +240,63 @@ class MY_Session {
 			}
 			$this->CI->db->delete($this->sess_table_name);
 		}
+	}
+
+	// --------------------------------------------------------------------
+
+	/**
+	 * Fetch a specific item from the session array
+	 *
+	 * @access	public
+	 * @param	string
+	 * @return	string
+	 */
+	function userdata($item)
+	{
+		$this->sess_read();
+		return ( ! isset($this->user_data[$item])) ? FALSE : $this->user_data[$item];
+	}
+
+	// --------------------------------------------------------------------
+
+	/**
+	 * Fetch all session data
+	 *
+	 * @access	public
+	 * @return	array
+	 */
+	function all_userdata()
+	{
+		$this->sess_read();
+		return $this->user_data;
+	}
+
+	// --------------------------------------------------------------------
+
+	/**
+	 * Add or change data in the "userdata" array
+	 *
+	 * @access	public
+	 * @param	mixed
+	 * @param	string
+	 * @return	void
+	 */
+	function set_userdata($newdata = array(), $newval = '')
+	{
+		if (is_string($newdata))
+		{
+			$newdata = array($newdata => $newval);
+		}
+
+		if (count($newdata) > 0)
+		{
+			foreach ($newdata as $key => $val)
+			{
+				$this->user_data[$key] = $val;
+			}
+		}
+
+		$this->sess_write();
 	}
 
 	// --------------------------------------------------------------------

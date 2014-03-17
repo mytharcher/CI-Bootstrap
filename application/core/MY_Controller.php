@@ -18,7 +18,7 @@ class MY_Controller extends CI_Controller {
 			'status' => 0
 		);
 
-		$this->session_data = $this->session->get(TRUE);
+		$this->session_data = $this->session->all_userdata();
 	}
 
 	protected function set($key, $value = NULL) {

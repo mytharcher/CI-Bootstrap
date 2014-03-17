@@ -28,8 +28,7 @@ class OAuth2 {
 		include_once 'Provider/'.$name.'.php';
 
 		$class = 'OAuth2_Provider_'.$name;
-
+		
 		return new $class($options);
 	}
-
 }
