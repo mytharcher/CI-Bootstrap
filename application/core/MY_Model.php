@@ -40,8 +40,31 @@ class Entity_Model extends MY_Model {
 				$this->db->order_by($column, $order);
 			}
 		}
-		$result = $this->db->get($this->main_table);
-		return $result->result_array();
+		$result = $this->db->get($this->main_table)->result_array();
+
+		// 在主结果集查询结束后再另行查询并拼装join集合
+		if (count($result) && isset($options['join'])) {
+			// => array('ForeignTable', array('foreignKey', 'foreignTableKey'))
+			foreach ($options['join'] as $table => $on) {
+				$this->db->where_in($on[1], array_unique(array_map(function ($item) use ($on) {
+					return $item[$on[0]];
+				}, $result)));
+
+				$join = $this->db->get($table)->result_array();
+				$join_map = array();
+				foreach ($join as $index => $item) {
+					$join_map[$item[$on[1]]] = $item;
+				}
+
+				foreach ($result as $index => $item) {
+					$foreign = $item[$on[0]];
+					unset($item[$on[0]]);
+					$item[lcfirst($table)] = $join_map[$foreign];
+					$result[$index] = $item;
+				}
+			}
+		}
+		return $result;
 	}
 
 	function get_list($columns = '*', $query = array(), $options = array()) {
@@ -57,7 +80,7 @@ class Entity_Model extends MY_Model {
 		return $result->result_array();
 	}
 
-	// $in是一个array($key => $value)的单值数组
+	// $in是一个array($value1, $value2)的值数组
 	function get_list_in($columns = '*', $in, $query = array(), $options = array()) {
 		$this->db->select($columns)
 			->from($this->main_table);
@@ -74,11 +97,7 @@ class Entity_Model extends MY_Model {
 	}
 	
 	function get($id) {
-		$result = $this->get_all(array('id' => $id), 1);
-		if (count($result)) {
-			return $result[0];
-		}
-		return $result;
+		return $this->get_one(array('id' => $id));
 	}
 
 	function create($entity) {
@@ -88,8 +107,19 @@ class Entity_Model extends MY_Model {
 		return FALSE;
 	}
 
+	function create_batch($batch) {
+		if ($this->db->insert_batch($this->main_table, $batch) !== FALSE) {
+			return $this->db->insert_id();
+		}
+		return FALSE;
+	}
+
 	function update($id, $entity) {
 		return $this->db->where('id', $id)->update($this->main_table, $entity);
+	}
+
+	function update_batch($batch) {
+		return $this->db->update_batch($this->main_table, $batch, 'id') && TRUE;
 	}
 
 	function delete($id) {
