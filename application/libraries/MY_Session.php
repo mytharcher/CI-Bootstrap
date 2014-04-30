@@ -85,18 +85,15 @@ class MY_Session {
 
 	// Fetch token string from client cookie
 	function token_get () {
-		return $this->CI->input->cookie($this->sess_cookie_name);
-	}
-
-	// Set new token to client cookie
-	function token_set () {
-		$sessid = '';
-		while (strlen($sessid) < 32) {
-			$sessid .= mt_rand(0, mt_getrandmax());
+		$token = $this->CI->input->cookie($this->sess_cookie_name);
+		if (!$token) {
+			$sessid = '';
+			while (strlen($sessid) < 32) {
+				$sessid .= mt_rand(0, mt_getrandmax());
+			}
+			$token = md5($sessid);
+			$this->_set_cookie($token);
 		}
-		$token = md5($sessid);
-		$this->_set_cookie($token);
-
 		return $token;
 	}
 
@@ -135,11 +132,6 @@ class MY_Session {
 		}
 
 		$token = $this->token_get();
-		// Run the Session routine. If a token doesn't exist we'll
-		// create a new one.
-		if (!$token) {
-			$token = $this->token_set();
-		}
 
 		$session = $this->query();
 
@@ -180,9 +172,8 @@ class MY_Session {
 		$session_record = array(
 			'lastActivity' => $this->now
 		);
-		
-		$session_record['userData'] = json_encode($this->user_data);
 
+		$session_record['userData'] = json_encode($this->user_data);
 		// Run the update query
 		$this->CI->db->where('id', $token);
 		$this->CI->db->update($this->sess_table_name, $session_record);
