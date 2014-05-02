@@ -202,7 +202,8 @@ class MY_Controller extends CI_Controller {
 	}
 
 	protected function send_mail($to, $template, $data) {
-		$config = $this->config->item('mail');
+		$this->config->item('email', TRUE);
+		$config = $this->config->item('email');
 		$this->load->library('email', $config);
 		// var_dump($config);
 		
