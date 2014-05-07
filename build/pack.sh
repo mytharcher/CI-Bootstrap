@@ -10,7 +10,7 @@ mkdir $TEMP_DIR
 cp -rf $SRC_DIR $TEMP_DIR/
 
 ### process *.html -> tpl.html
-sed 's/.*"\/\(.*\.html\)".*/\1/' $TEMP_DIR/$TEMPLATE_LIST | grep tpl | xargs cat |
+sed 's/.*"\/\(.*\)".*/\1/' $TEMP_DIR/$TEMPLATE_LIST | grep tpl | xargs cat |
 	# sed 's/"/`/g' | xargs echo | sed 's/`/"/g' > $TEMP_DIR/assets/tpl.html
 	tr "\r" " " | tr "\n" " " |
 	sed 's/>[[:space:]]*/>/g' | sed 's/[[:space:]]*</</g' > $TEMP_DIR$TEMPLATE_TARGET

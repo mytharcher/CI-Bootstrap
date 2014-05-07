@@ -359,7 +359,8 @@ class MY_Parser extends CI_Parser {
             APPPATH . 'modules/' . $this->_module . '/views/layouts/',
             APPPATH . 'modules/' . $this->_module . '/views/',
             APPPATH . 'views/layouts/',
-            APPPATH . 'views/'
+            APPPATH . 'views/',
+            config_item('front_path')
         );
 
         // Will add paths into Smarty for "smarter" inheritance and inclusion
