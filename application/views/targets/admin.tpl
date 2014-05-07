@@ -89,7 +89,7 @@
 
 	<div class="layout-container layout-meta">
 		<form method="post" action="/account/logout" ui="type:XAjaxForm;id:LoginForm">
-			<a class="btn btn-link">{$session.oauth.name}</a>
+			<a class="btn btn-link">{$session.name}</a>
 			<button type="submit" ui="type:Button;" class="btn btn-link">退出</button>
 		</form>
 	</div>
@@ -100,9 +100,9 @@
 </div>
 
 <script src="http://elfjs.qiniudn.com/code/elf-0.5.0.min.js"></script>
-<script src="/assets/js/er.pack.js"></script>
-<script src="/assets/js/esui.pack.js"></script>
-<script src="/assets/js/site.pack.js"></script>
+<script src="http://elfjs.qiniudn.com/code/er.min.js"></script>
+<script src="http://elfjs.qiniudn.com/code/esui.min.js"></script>
+<script src="/assets/js/site.admin.pack.js"></script>
 <script>
 site.lib.Main.setup();
 </script>
