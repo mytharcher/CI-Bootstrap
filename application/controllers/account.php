@@ -4,6 +4,7 @@ class Account extends Entity_Controller {
 
 	var $main_model = 'Account_model';
 
+	// 获取用户信息
 	public function get($id = NULL) {
 		$data = NULL;
 
@@ -31,7 +32,7 @@ class Account extends Entity_Controller {
 	}
 
 	protected function relogin() {
-		return $this->redirect('/account/login');
+		return $this->redirect('account/login');
 	}
 
 	public function login()
@@ -87,11 +88,16 @@ class Account extends Entity_Controller {
 					$this->session->set_userdata($account);
 
 					// 如果还未完善资料，必须跳转到注册页面完善后才算登录。
-					if (isset($account['statusId']) && $account['statusId'] == 1) {
-						return $this->redirect('/account/register');
+					if (isset($account['status']) && $account['status']['id'] == 1) {
+						return $this->redirect('account/register');
 					}
 
-					return $this->redirect('/');
+					$redirect = $this->session->get_redirect();
+					if (!$redirect) {
+						$redirect = '';
+					}
+
+					return $this->redirect($redirect);
 				} else {
 					// $this->session->set_flashdata('info', '获取用户信息失败');
 					// echo '获取用户信息失败';
@@ -110,6 +116,12 @@ class Account extends Entity_Controller {
 		}
 
 		return $this->render('targets/register.tpl');
+	}
+
+	public function logout() {
+		$this->session->destroy();
+
+		return $this->redirect('account/login');
 	}
 
 	private function link($user) {
@@ -148,6 +160,8 @@ class Account extends Entity_Controller {
 				$account['joinAt'] = date(DATE_ATOM);
 
 				$source = file_get_contents('http://weibo.com/u/'.$user['uid']);
+				// 新浪微博未登录用户引导注册页面不符合HTML标准，“&”符号没有进行转义，会导致解析警告
+				$source = str_replace('&', '&amp;', $source);
 				$crawled = FALSE;
 				if ($source) {
 					// CI框架的类库加载问题，任何类加载会被自动实例化，且传入参数必须是数组类型
@@ -180,4 +194,5 @@ class Account extends Entity_Controller {
 
 		return NULL;
 	}
+
 }
