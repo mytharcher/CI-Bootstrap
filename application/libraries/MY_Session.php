@@ -201,7 +201,7 @@ class MY_Session {
 			'userData'		=> json_encode($data)
 		);
 
-		$this->CI->db->query($this->CI->db->insert_string($this->sess_table_name, $session));
+		$this->CI->db->insert($this->sess_table_name, $session);
 
 		$this->user_data = $data;
 
@@ -255,7 +255,6 @@ class MY_Session {
 	 */
 	function all_userdata()
 	{
-		$this->sess_read();
 		return $this->user_data;
 	}
 
@@ -285,6 +284,23 @@ class MY_Session {
 		}
 
 		$this->sess_write();
+	}
+
+	function set_redirect($redirect = NULL) {
+		$token = $this->token_get();
+
+		$this->CI->db->where('id', $token)
+			->update($this->sess_table_name, array('redirect' => $redirect));
+	}
+
+	function get_redirect() {
+		$token = $this->token_get();
+		$res = $this->CI->db->get_where(
+			$this->sess_table_name,
+			array('id' => $token)
+		)->row_array();
+		
+		return isset($res['redirect']) ? $res['redirect'] : NULL;
 	}
 
 	// --------------------------------------------------------------------

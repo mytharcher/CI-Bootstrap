@@ -20,6 +20,9 @@ class MY_Controller extends CI_Controller {
 		);
 
 		$this->session_data = $this->session->all_userdata();
+		if ($this->session->get_redirect() == $this->uri->uri_string) {
+			$this->session->set_redirect();
+		}
 	}
 
 	protected function set($key, $value = NULL) {
@@ -90,6 +93,9 @@ class MY_Controller extends CI_Controller {
 	// 验证登录状态。错误码：2
 	protected function check_session() {
 		if (!$this->session_data || !isset($this->session_data['id'])) {
+			if (!$this->session->get_redirect()) {
+				$this->session->set_redirect($this->uri->uri_string);
+			}
 			$this->set_status(2);
 			return FALSE;
 		}
@@ -198,7 +204,7 @@ class MY_Controller extends CI_Controller {
 	}
 
 	protected function redirect($url = '') {
-		return redirect('http://'.$_SERVER['HTTP_HOST'].$url);
+		return redirect('http://'.$_SERVER['HTTP_HOST'].'/'.$url);
 	}
 
 	protected function send_mail($to, $template, $data) {
