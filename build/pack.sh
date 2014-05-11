@@ -26,7 +26,7 @@ do
 	# sed 's/;[[:space:]]*/;/g' |
 	# sed 's/\}[[:space:]]*/}/g' |
 	sed 's/\([\{\}\:;,]\)[[:space:]]*/\1/g' > $pack.tmp
-	cat $pack.tmp | java -jar $WORK_BASE/build/yuicompressor.jar --charset utf-8 --type css > $pack
+	cat $pack.tmp | java -Xms64m -Xmx64m -jar $WORK_BASE/build/yuicompressor.jar --charset utf-8 --type css > $pack
 done
 find $TEMP_DIR/assets/css -type f | grep -v "img" | grep -v pack\.css$ | xargs rm -rf
 
@@ -37,7 +37,7 @@ do
 	do
 		cat $TEMP_DIR/$path >> $pack.tmp
 	done
-	cat $pack.tmp | java -jar $WORK_BASE/build/yuicompressor.jar --charset utf-8 --type js > $pack
+	cat $pack.tmp | java -Xms64m -Xmx64m -jar $WORK_BASE/build/yuicompressor.jar --charset utf-8 --type js > $pack
 done
 
 find $TEMP_DIR/assets/js -type f | grep -v \.pack\.js$ | xargs rm -rf
