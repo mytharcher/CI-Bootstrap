@@ -185,7 +185,7 @@ class Account extends Entity_Controller {
 				$id = $this->model->create($account);
 
 				if ($id) {
-					$account['id'] = $id;
+					$account = $this->model->get($id);
 				}
 			}
 
