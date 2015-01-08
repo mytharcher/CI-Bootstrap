@@ -176,7 +176,7 @@ if (defined('ENVIRONMENT'))
 	define('SYSDIR', trim(strrchr(trim(BASEPATH, '/'), '/'), '/'));
 
 	// The root folder path of web application
-	define('WEBROOT', $_SERVER['DOCUMENT_ROOT']);
+	define('WEBROOT', dirname(__FILE__));
 
 
 	// The path to the "application" folder
