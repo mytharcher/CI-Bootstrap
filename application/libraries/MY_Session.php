@@ -289,7 +289,7 @@ class MY_Session {
 	function set_redirect($redirect = NULL) {
 		$token = $this->token_get();
 
-		$this->CI->db->where('id', $token)
+		return $this->CI->db->where('id', $token)
 			->update($this->sess_table_name, array('redirect' => $redirect));
 	}
 

@@ -56,9 +56,11 @@ function select_elements($selector, $html, $as_array = true) {
 
 function elements_to_array($elements) {
   $array = array();
-  for ($i = 0, $length = $elements->length; $i < $length; ++$i)
-    if ($elements->item($i)->nodeType == XML_ELEMENT_NODE)
+  for ($i = 0, $length = $elements->length; $i < $length; ++$i) {
+    if ($elements->item($i)->nodeType == XML_ELEMENT_NODE) {
       array_push($array, element_to_array($elements->item($i)));
+    }
+  }
   return $array;
 }
 

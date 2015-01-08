@@ -133,9 +133,15 @@ class MY_Form_validation extends CI_Form_validation {
 		return $query->num_rows() === 0;
 	}
 
-	public function hour_minute($str)
+	public function is_hour_minute($str)
 	{
-		$r = preg_match_all("/([01]?[0-9]|2[0-3])\:[0-5][0-9]/", $str);
-		return $r !== 0;
+		$match = preg_match_all("/([01]?[0-9]|2[0-3])\:[0-5][0-9]/", $str);
+		return $match !== 0;
+	}
+
+	public function is_date($str)
+	{
+		$date = explode('-', $str);
+		return count($date) == 3 && checkdate(intval($date[1]), intval($date[2]), intval($date[0]));
 	}
 }
