@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS `Session` (
   `ip` varchar(64) NOT NULL DEFAULT '0',
   `userAgent` varchar(120) NOT NULL,
   `lastActivity` int(10) unsigned NOT NULL DEFAULT '0',
+  `redirect` varchar(255) DEFAULT NULL,
   `userData` text,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
