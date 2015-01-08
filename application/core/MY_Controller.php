@@ -4,6 +4,7 @@ class MY_Controller extends CI_Controller {
 	
 	var $json_data;
 	var $checked = FALSE;
+	var $session_data = array();
 	// 用于在表单验证时，忽略规则中“!key”表示的特定值。
 	// 目前当数据库表有设置唯一字段时，再update对应字段，
 	// 当新值和数据库中该字段值相同时，不认为是重复判定。
@@ -15,13 +16,17 @@ class MY_Controller extends CI_Controller {
 		parent::__construct();
 
 		$this->json_data = array(
-			'status' => 0,
-			'data' => array()
+			'status' => 0
 		);
 
-		$this->session_data = $this->session->all_userdata();
-		if ($this->session->get_redirect() == $this->uri->uri_string) {
-			$this->session->set_redirect();
+		if (!$this->input->is_cli_request()) {
+			$this->load->library('session');
+			$this->get_session();
+			if ($this->session->get_redirect() == $this->uri->uri_string) {
+				$this->session->set_redirect();
+			}
+		} else {
+			$this->load->database();
 		}
 	}
 
@@ -42,6 +47,10 @@ class MY_Controller extends CI_Controller {
 	}
 
 	protected function set_data($key, $value = NULL) {
+		// 保证在设置数据时已经建立data集合
+		if ($key !== NULL && !isset($this->json_data['data'])) {
+			$this->json_data['data'] = array();
+		}
 		if ($value === NULL && is_array($key)) {
 			$this->json_data['data'] = array_merge($this->json_data['data'], $key);
 		} else if (is_string($key)) {
@@ -55,6 +64,16 @@ class MY_Controller extends CI_Controller {
 		}
 	}
 
+	protected function get_session() {
+		$this->session_data = $this->session->all_userdata();
+		return $this->session_data;
+	}
+
+	protected function set_session($data) {
+		$this->session->set_userdata($data);
+		$this->session_data = $data;
+	}
+
 	// 所有验证的总入库，以参数顺序调用其他验证器。
 	// 过程中每个验证器在失败的适合设定唯一的status码用于前端判断。
 	// e.g.
@@ -65,9 +84,29 @@ class MY_Controller extends CI_Controller {
 	// 2: 未登录
 	// 3: 没有操作权限
 	// 4: 返回数据业务错误
+	// 4.1: 未完善注册资料
+	// 4.3: 请求的操作不允许
 	// 4.4: 请求内容不存在
+	// 4.8: 请求超时（订单支付超时）
 	// 5: 服务器或数据库其他错误，未捕获的异常等
 	// 6: 邮件发送失败
+
+	// protected function check () {
+	// 	$this->checked = TRUE;
+	// 	$methods = func_get_args();
+	// 	foreach ($methods as $method) {
+	// 		$m = 'check_' . $method;
+	// 		if (!function_exists($m)) {
+	// 			$this->load->helper("filters/$m");
+	// 		}
+
+	// 		if ($m() === FALSE) {
+	// 			return FALSE;
+	// 		}
+	// 	}
+	// 	return TRUE;
+	// }
+
 	protected function check () {
 		$this->checked = TRUE;
 		$methods = func_get_args();
@@ -81,29 +120,31 @@ class MY_Controller extends CI_Controller {
 	}
 
 	// 验证输入。错误码：1
-	protected function check_input() {
+	protected function check_input($only = FALSE) {
 		$result = $this->form_validation->run();
-		if ($result === FALSE) {
+		if ($result === FALSE && !$only){
 			$this->set_status(1);
-			$this->set('fieldError', $this->form_validation->error_array());
+			$this->set_data($this->form_validation->error_array());
 		}
 		return $result;
 	}
 
 	// 验证登录状态。错误码：2
-	protected function check_session() {
+	protected function check_session($only = FALSE) {
 		if (!$this->session_data || !isset($this->session_data['id'])) {
-			if (!$this->session->get_redirect()) {
-				$this->session->set_redirect($this->uri->uri_string);
+			if (!$only) {
+				if (!$this->is_ajax() && !$this->session->get_redirect()) {
+					$this->session->set_redirect($this->uri->uri_string);
+				}
+				$this->set_status(2);
 			}
-			$this->set_status(2);
 			return FALSE;
 		}
 		return TRUE;
 	}
 
 	// 验证操作权限。错误码：3
-	protected function check_permission() {
+	protected function check_permission($only = FALSE) {
 		$this->load->model('Role_model', 'role');
 
 		$uri = $this->uri->uri_string();
@@ -121,71 +162,57 @@ class MY_Controller extends CI_Controller {
 				}
 			}
 		}
-
-		$this->set_status(3);
+		if (!$only){
+			$this->set_status(3);
+		}
 		return FALSE;
 	}
 
-	protected function read_relation($id, $model, $full = FALSE) {
-		$this->load->model($model);
-		return $this->$model->foreign($id, $full);
-	}
-
-	protected function read_relation_index($id, $model, $single = FALSE) {
-		$mapper = function ($item) {
-			return $item['index'];
-		};
-		$result = $this->read_relation($id, $model);
-		return $single ? $result[0] ? $result[0]['index'] : NULL : array_map($mapper, $result);
-	}
-
-	protected function write_relation($id, $model, $relation) {
-		$success = TRUE;
-		if ($relation) {
-			$this->load->model($model);
-			if (!is_array($relation)) {
-				$relation = array($relation);
+	// 是否首次登录未完善注册信息。true：已完善，false，未完善
+	// 错误码：4.1
+	protected function check_register($only = FALSE) {
+		$account = $this->session_data;
+		if ($account['role']['id'] != 2 && $account['status']['id'] == 1) {
+			if (!$only) {
+				if (!$this->is_ajax() && !$this->session->get_redirect()) {
+					$this->session->set_redirect($this->uri->uri_string);
+				}
+				$this->set_status(4.1);
 			}
-	
-			foreach ($relation as $foreignId) {
-				$success = $this->$model->link(array(
-					'foreign' => $id,
-					'self' => $foreignId)) && $success;
-			}
-		} else {
-			$success = FALSE;
+			return FALSE;
 		}
-		return $success;
+		return TRUE;
 	}
 
-	protected function update_relation($id, $model, $relation) {
-		$success = TRUE;
-		if ($relation) {
+	protected function load_meta_data() {
+		$metas = func_get_args();
+		foreach ($metas as $key) {
+			$model = $key.'_model';
 			$this->load->model($model);
-
-			$this->$model->unlink(array('foreign' => $id));
-
-			$success = $this->write_relation($id, $model, $relation);
-		} else {
-			$success = FALSE;
+			$data = $this->$model->get_all();
+			$this->set_data($key.'s', $data);
 		}
-		return $success;
 	}
 
-	protected function delete_relation($id, $model) {
-		$this->load->model($model);
-		return $this->$model->unlink(array('foreign' => $id));
+	protected function is_ajax() {
+		$headers = getallheaders(); // For PHP < 5.4 define in server_helper.php;
+		return isset($headers['X-Requested-With']) && $headers['X-Requested-With'] == 'XMLHttpRequest';
 	}
 
 	protected function render($template, $data = NULL) {
 		$this->set_data($data);
-		$this->set_data('session', $this->session_data);
-		$this->parser->parse($template, $this->json_data['data']);
+		$this->set('session', $this->session_data);
+		$this->parser->parse($template, $this->json_data);
 	}
 
 	protected function json($data = NULL) {
 		$this->set_data($data);
 		$this->load->view('json', array('json' => $this->json_data));
+	}
+
+	protected function status($status, $data = NULL) {
+		$this->set_status($status);
+		$this->json($data);
 	}
 
 	protected function out($data = NULL, $tpl = '') {
@@ -194,12 +221,35 @@ class MY_Controller extends CI_Controller {
 			$data = NULL;
 		}
 		$this->set_data($data);
-		$headers = getallheaders(); // For PHP < 5.4 define in server_helper.php;
 
-		if (isset($headers['X-Requested-With']) && $headers['X-Requested-With'] == 'XMLHttpRequest') {
+		if ($this->is_ajax()) {
 			$this->json();
 		} else {
 			$this->render($tpl ? $tpl : 'targets/'.uri_string().'.tpl');
+		}
+	}
+
+	protected function relogin() {
+		return $this->redirect('account/login');
+	}
+
+	protected function out_not_found() {
+		if ($this->is_ajax()) {
+			$this->set_status(4.4);
+			$this->json();
+		} else {
+			show_404();
+		}
+	}
+
+	protected function out_message($status, $message = NULL) {
+		$this->set_status($status);
+		$this->set_msg($message);
+
+		if ($this->is_ajax()) {
+			$this->json();
+		} else {
+			$this->render('targets/message.tpl');
 		}
 	}
 
@@ -208,13 +258,14 @@ class MY_Controller extends CI_Controller {
 	}
 
 	protected function send_mail($to, $template, $data) {
-		$this->config->item('email', TRUE);
+		$this->config->load('email', TRUE);
 		$config = $this->config->item('email');
 		$this->load->library('email', $config);
 		// var_dump($config);
 		
 		$this->email->from( $config['smtp_account'], $config['sender_name'] );
 		$this->email->to( $to );
+
 		$subject = $this->parser->parse($template.'.title.tpl', $data, TRUE);
 		$content = $this->parser->parse($template.'.tpl', $data, TRUE);
 		$this->email->subject( $subject );
@@ -228,13 +279,14 @@ class MY_Controller extends CI_Controller {
 
 class Entity_Controller extends MY_Controller {
 	var $main_model;
-	var $relation_keys = array();
 
 	function __construct() {
 
 		parent::__construct();
 
-		$this->load->model($this->main_model, 'model');
+		if (isset($this->main_model)) {
+			$this->load->model($this->main_model, 'model');
+		}
 	}
 
 	// GET /api/$controller
@@ -285,7 +337,7 @@ class Entity_Controller extends MY_Controller {
 		$this->out();
 	}
 
-	// POST /api/$controller/delete/:id?
+	// POST /api/$controller/delete/:id
 	public function delete($id) {
 		if ($this->check('session', 'permission')) {
 			if ($this->model->delete($id) === FALSE) {
@@ -297,32 +349,18 @@ class Entity_Controller extends MY_Controller {
 	}
 
 	protected function _save($id = NULL) {
+		$is_create = !$id;
+
 		$input = $this->input->post();
-		$relations = array();
+		
+		$id = $this->model->save($input, $id);
 
-		foreach ($this->relation_keys as $item) {
-			$relations[ucfirst($item) . '_model'] = $this->input->post($item . 'Id');
-			unset($input[$item . 'Id']);
-		}
-
-		foreach ($input as $key => $value) {
-			if ($value == '') {
-				$input[$key] = NULL;
-			}
-		}
-
-		if (!$id) {
-			$id = $this->model->create($input);
-			$this->set_data(array('id' => $id));
-		} else {
-			$this->model->update($id, $input);
-		}
 		if ($id) {
-			foreach ($relations as $model => $relation) {
-				$this->update_relation($id, $model, $relation);
+			if ($is_create) {
+				$this->set_data(array('id' => $id));
 			}
 		} else {
-			$this->set_status(1);
+			$this->set_status(5);
 		}
 	}
 }

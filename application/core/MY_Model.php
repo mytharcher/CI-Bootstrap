@@ -8,16 +8,19 @@ class MY_Model extends CI_Model {
 
 class Entity_Model extends MY_Model {
 	var $main_table;
-	var $relation_table;
-	var $foreign_key;
+	var $id_key = 'id';
+
 	var $search_key = 'name';
+
+	var $relations;
 
 	function __construct () {
 		parent::__construct();
 	}
 	
-	function get_one($query = array()) {
-		$result = $this->get_all($query, array('limit' => 1));
+	function get_one($query = array(), $options = array()) {
+		$options['limit'] = 1;
+		$result = $this->get_all($query, $options);
 		if (count($result)) {
 			return $result[0];
 		}
@@ -25,7 +28,20 @@ class Entity_Model extends MY_Model {
 	}
 
 	function get_all($query = array(), $options = array()) {
+		if (isset($options['columns'])) {
+			$this->db->select(implode(',', $options['columns']));
+			$columns = $options['columns'];
+		}
+
 		$this->db->where($query);
+		
+		if (isset($options['in'])) {
+			foreach ($options['in'] as $key => $in) {
+				if (count($in)) {
+					$this->db->where_in($key, $in);
+				}
+			}
+		}
 		if (isset($options['like'])) {
 			foreach ($options['like'] as $key => $value) {
 				$this->db->like($key, $value);
@@ -44,24 +60,42 @@ class Entity_Model extends MY_Model {
 
 		// 在主结果集查询结束后再另行查询并拼装join集合
 		if (count($result) && isset($options['join'])) {
-			// => array('ForeignTable', array('foreignKey', 'foreignTableKey'))
-			foreach ($options['join'] as $table => $on) {
-				$this->db->where_in($on[1], array_unique(array_map(function ($item) use ($on) {
-					return $item[$on[0]];
-				}, $result)));
+			// => array('foreignKey' => array('ForeignTable', 'foreignTableKey'))
+			foreach ($options['join'] as $key => $on) {
+				$table = $on[0];
+				// 防止筛选过列后结果集中没有要join的列
+				// 没有针对AS处理，会有一定风险
+				if (!isset($columns) || in_array($key, $columns)) {
+					$ons = array_map(function ($item) use ($key) {
+						return isset($item[$key]) ? $item[$key] : NULL;
+					}, $result);
+					$ons = array_filter($ons, function ($item) {
+						return $item !== NULL;
+					});
+					$ons = array_unique($ons);
 
-				$join = $this->db->get($table)->result_array();
-				$join_map = array();
-				foreach ($join as $index => $item) {
-					$join_map[$item[$on[1]]] = $item;
+					if (count($ons)) {
+						$this->db->where_in($on[1], $ons);
+	
+						$join = $this->db->get($table)->result_array();
+						$join_map = array();
+						foreach ($join as $index => $item) {
+							$join_map[$item[$on[1]]] = $item;
+						}
+	
+						foreach ($result as $index => $item) {
+							if (isset($item[$key])) {
+								$foreign = $item[$key];
+								if (isset($join_map[$foreign])) {
+									$item[preg_replace('/Id$/', '', $key)] = $join_map[$foreign];
+									$result[$index] = $item;
+								}
+							}
+						}
+					}
+
 				}
 
-				foreach ($result as $index => $item) {
-					$foreign = $item[$on[0]];
-					unset($item[$on[0]]);
-					$item[lcfirst($table)] = $join_map[$foreign];
-					$result[$index] = $item;
-				}
 			}
 		}
 		return $result;
@@ -88,7 +122,7 @@ class Entity_Model extends MY_Model {
 			$this->db->where($query);
 		}
 		if (count($in)) {
-			$this->db->where_in($this->main_table . '.id', $in);
+			$this->db->where_in($this->main_table . '.'.$this->id_key, $in);
 			$result = $this->db->get();
 			return $result->result_array();
 		} else {
@@ -96,8 +130,9 @@ class Entity_Model extends MY_Model {
 		}
 	}
 	
-	function get($id) {
-		return $this->get_one(array('id' => $id));
+	function get($id, $query = array(), $options = array()) {
+		$query = array_merge($query, array($this->id_key => $id));
+		return $this->get_one($query, $options);
 	}
 
 	function create($entity) {
@@ -115,60 +150,126 @@ class Entity_Model extends MY_Model {
 	}
 
 	function update($id, $entity) {
-		return $this->db->where('id', $id)->update($this->main_table, $entity);
+		return $this->db->where($this->id_key, $id)->update($this->main_table, $entity);
 	}
 
 	function update_batch($batch) {
-		return $this->db->update_batch($this->main_table, $batch, 'id') && TRUE;
+		return $this->db->update_batch($this->main_table, $batch, $this->id_key) && TRUE;
 	}
 
-	function delete($id) {
-		$success = $this->db->delete($this->main_table, array('id' => $id));
-		if ($this->relation_table) {
-			$success = $success && $this->unlink(array('self' => $id));
+	function delete($id, $remove_relation = FALSE) {
+		$success = $this->db->delete($this->main_table, array($this->id_key => $id));
+		// if ($this->relation_table) {
+		// 	$success = $success && $this->unlink(array('self' => $id));
+		// }
+		if ($remove_relation && $this->relations && count($this->relations)) {
+			foreach ($this->relations as $table => $foreign_key) {
+				$success = $success && $this->unlink($table, array('self' => $id));
+			}
 		}
 		return $success;
 	}
 
-	function get_relation($query, $full = FALSE) {
-		if ($this->relation_table) {
-			// use `index` for controller only load relation indexes
-			$this->db->select('*, '.$this->main_table.'Id AS `index`')
-				->from($this->relation_table);
-			if ($full) {
-				$this->db->join($this->main_table, $this->main_table.'Id = '.$this->main_table.'.id', 'left outer');
+	function delete_batch($ids, $remove_relation = FALSE) {
+		$success = $this->db->where_in($this->id_key, $ids)->delete($this->main_table);
+		if ($remove_relation && $this->relations && count($this->relations)) {
+			foreach ($this->relations as $table => $foreign_key) {
+				$success = $success && $this->unlink_batch($table, $ids);
 			}
-			$result = $this->db->where($query)->get();
+		}
+
+		return $success;
+	}
+
+	/**
+	 * 过滤关联外键输入数据
+	 * $relative TURE返回外键数据，FALSE返回普通数据
+	 */
+	function filter_input($input, $relative = FALSE) {
+		$relations = array();
+		if ($this->relations){
+			foreach ($this->relations as $table => $key) {
+				if (isset($input[$key])) {
+					$relations[$key] = $input[$key];
+					unset($input[$key]);
+				}
+			}
+		}
+
+		return $relative ? $relations : $input;
+	}
+
+	function save($input, $id = NULL) {
+		$success = FALSE;
+
+		$data = $this->filter_input($input);
+
+		$is_create = !$id;
+		if ($is_create) {
+			$id = $this->create($data);
+			if ($id) {
+				$success = TRUE;
+			}
 		} else {
-			$result = $this->db->get_where($this->main_table, $query);
+			$success = $this->update($id, $data);
 		}
-		return $result->result_array();
+
+		$success = $success && $this->write_relations($id, $input);
+
+		return $is_create ? $id : $success;
 	}
 
-	// 根据foreign_id的值在关系表中查出记录
-	function foreign($id, $full = FALSE) {
-		return $this->get_relation(array($this->foreign_key => $id), $full);
-	}
-
-	// 根据主表id的值在
-	function relative($id, $full = FALSE) {
-		return $this->get_relation(array($this->main_table.'Id' => $id), $full);
-	}
-
-	// 根据给定的$ids数组中的id值从关系表中反查出foreign_id的值组
-	function reverse_foreign($ids, $options = array()) {
-		if ($this->relation_table) {
-			$this->db->select($this->foreign_key)
-				->distinct()
-				->from($this->relation_table)
-				->where_in($this->main_table.'Id', $ids);
-			if (isset($options['limit'])) {
-				$offset = isset($options['offset']) ? $options['offset'] : 0;
-				$this->db->limit($options['limit'], $offset);
+	function read_relations($id, $full = FALSE) {
+		$result = NULL;
+		if ($this->relations) {
+			$result = array();
+			$id_key = $this->id_key != 'id' ?
+				$this->id_key :
+				lcfirst($this->main_table).ucfirst($this->id_key);
+			foreach ($this->relations as $table => $key) {
+				$result[$key] = array_map(function($item) use ($key) {
+					return $item[$key];
+				}, $this->db->get_where($table, array(
+					$id_key => $id
+				))->result_array());
+				if ($full) {
+					$table_key = preg_replace('/Id$/', '', $key);
+					$foreign_table = ucfirst($table_key);
+					$result[$table_key] = count($result[$key]) ?
+						$this->db->where_in('id', $result[$key])
+						->get($foreign_table)
+						->result_array() :
+						array();
+				}
 			}
-			$result = $this->db->get();
-			return $result->result_array();
 		}
+		return $result;
+	}
+
+	function write_relations($id, $data, $reserve = FALSE) {
+		$success = TRUE;
+
+		if ($this->relations) {
+			if (!$reserve) {
+				$this->unlink_id($id);
+			}
+			$relations = $this->filter_input($data, TRUE);
+			$links = array();
+			foreach ($this->relations as $table => $key) {
+				if (isset($relations[$key])) {
+					$links = is_array($relations[$key]) ? $relations[$key] : array($relations[$key]);
+
+					$success = $this->link($table, array_map(function ($item) use ($id) {
+						return array(
+							'foreign' => $item,
+							'self' => $id
+						);
+					}, $links)) && $success;
+				}
+			}
+		}
+
+		return $success;
 	}
 
 	function search_all($keyword, $options = array()) {
@@ -177,67 +278,75 @@ class Entity_Model extends MY_Model {
 		return $result;
 	}
 
-	function search_to_foreign($keyword, $options = array()) {
-		$this->db->select($this->foreign_key)
-			->from($this->relation_table)
-			->join($this->main_table, $this->main_table.'Id = '.$this->main_table.'.id', 'inner')
-			->like($this->main_table . '.' . $this->search_key, $keyword);
-
-		if (isset($options['limit'])) {
-			$offset = isset($options['offset']) ? $options['offset'] : 0;
-			$this->db->limit($options['limit'], $offset);
-		}
-		if (isset($options['sort'])) {
-			foreach ($options['sort'] as $column => $order) {
-				$this->db->order_by($column, $order);
+	function link($table, $links) {
+		if ($this->relations && isset($this->relations[$table])) {
+			$relations = array();
+			foreach ($links as $link) {
+				$id_key = $this->id_key == 'id' ?
+					lcfirst($this->main_table).ucfirst($this->id_key) :
+					$this->id_key;
+				$relation = array(
+					$id_key => $link['self'],
+					$this->relations[$table] => $link['foreign']
+				);
+				$query = $this->db->get_where($table, $relation);
+				if (!$query->num_rows()) {
+					array_push($relations, $relation);
+				}
 			}
-		}
-		$result = $this->db->get();
-		return $result->result_array();
-	}
-
-	function link($link) {
-		if ($this->relation_table) {
-			$relation = array(
-				$this->main_table.'Id' => $link['self'],
-				$this->foreign_key => $link['foreign']
-			);
-			$query = $this->db->get_where($this->relation_table, $relation);
-			if (!$query->num_rows()) {
-				return $this->db->insert($this->relation_table, $relation);
-			} else {
-				return FALSE;
-			}
+			return $this->db->insert_batch($table, $relations);
 		}
 
 		return FALSE;
 	}
 
-	function unlink($link) {
-		if ($this->relation_table) {
+	function unlink($table, $link) {
+		if ($this->relations && count($this->relations)) {
 			$relation = array();
 			if (isset($link['self'])) {
-				$relation[$this->main_table.'Id'] = $link['self'];
+				$relation[lcfirst($this->main_table).ucfirst($this->id_key)] = $link['self'];
 			}
 			if (isset($link['foreign'])) {
-				$relation[$this->foreign_key] = $link['foreign'];
+				$relation[$this->relations[$table]] = $link['foreign'];
 			}
-			return $this->db->delete($this->relation_table, $relation);
+			return $this->db->delete($table, $relation);
 		}
 
 		return 0;
 	}
 
-	function is_linked($link) {
-		if ($this->relation_table) {
+	function unlink_id($id) {
+		$success = FALSE;
+		if ($this->relations && count($this->relations)) {
+			$my_key = $this->id_key == 'id' ?
+				lcfirst($this->main_table).ucfirst($this->id_key) :
+				$this->id_key;
+			foreach ($this->relations as $table => $key) {
+				$success = $this->db->where($my_key, $id)->delete($table) && $success;
+			}
+		}
+		return $success;
+	}
+
+	function unlink_batch($table, $ids) {
+		if ($this->relations && count($this->relations)) {
+			return $this->db->where_in(lcfirst($this->main_table).ucfirst($this->id_key), $ids)
+				->delete($table);
+		}
+
+		return 0;
+	}
+
+	function is_linked($table, $link) {
+		if ($this->relations && isset($this->relations[$table])) {
 			$relation = array();
 			if (isset($link['self'])) {
-				$relation[$this->main_table.'Id'] = $link['self'];
+				$relation[lcfirst($this->main_table).ucfirst($this->id_key)] = $link['self'];
 			}
 			if (isset($link['foreign'])) {
-				$relation[$this->foreign_key] = $link['foreign'];
+				$relation[$this->relations[$table]] = $link['foreign'];
 			}
-			$query = $this->db->get_where($this->relation_table, $relation);
+			$query = $this->db->get_where($table, $relation);
 			return $query->num_rows() > 0;
 		}
 
