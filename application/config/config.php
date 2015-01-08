@@ -362,4 +362,4 @@ date_default_timezone_set("Asia/Shanghai");
 /* End of file config.php */
 /* Location: ./application/config/config.php */
 require_once(WEBROOT.'/env/domain.php');
-require_once(WEBROOT.'/env/'.$_SERVER['HTTP_HOST'].'/config.php');
+require_once(WEBROOT.'/env/'.HOST_ENV_NAME.'/config.php');

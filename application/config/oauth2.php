@@ -2,4 +2,4 @@
 
 $config['oauth2'] = array();
 
-require_once(WEBROOT.'/env/'.$_SERVER['HTTP_HOST'].'/oauth2.php');
+require_once(WEBROOT.'/env/'.HOST_ENV_NAME.'/oauth2.php');

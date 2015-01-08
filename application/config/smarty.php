@@ -47,4 +47,4 @@ $config['smarty_debug'] = FALSE;
 // For reuse front-end component templates in Smarty
 $config['front_path'] = WEBROOT.'/assets/tpl';
 
-require_once(WEBROOT.'/env/'.$_SERVER['HTTP_HOST'].'/smarty.php');
+require_once(WEBROOT.'/env/'.HOST_ENV_NAME.'/smarty.php');

@@ -178,6 +178,9 @@ if (defined('ENVIRONMENT'))
 	// The root folder path of web application
 	define('WEBROOT', dirname(__FILE__));
 
+	// Env folder name from HTTP_HOST (replace port colon to tilde)
+	define('HOST_ENV_NAME', str_replace(':', '~', $_SERVER['HTTP_HOST']));
+
 
 	// The path to the "application" folder
 	if (is_dir($application_folder))

@@ -16,4 +16,4 @@ $config['return_url'] = 'http://'.$_SERVER['HTTP_HOST'].'/order/callback/return'
 $config['cacert'] = APPPATH.'third_party/alipay/cacert.pem';
 
 
-require_once(WEBROOT.'/env/'.$_SERVER['HTTP_HOST'].'/alipay.php');
+require_once(WEBROOT.'/env/'.HOST_ENV_NAME.'/alipay.php');
