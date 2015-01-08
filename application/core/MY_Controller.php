@@ -254,6 +254,7 @@ class MY_Controller extends CI_Controller {
 	}
 
 	protected function redirect($url = '') {
+		$url = preg_replace('/^\/(.*)/', "$1", $url);
 		return redirect('http://'.$_SERVER['HTTP_HOST'].'/'.$url);
 	}
 
