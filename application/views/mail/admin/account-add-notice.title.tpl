@@ -1,0 +1,1 @@
+[{$domain}通知]已将您添加为{$roleText}
