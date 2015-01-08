@@ -224,7 +224,7 @@ $config['cache_path'] = '';
 | MUST set an encryption key.  See the user guide for info.
 |
 */
-$config['encryption_key'] = 'cyeachina.org';
+$config['encryption_key'] = 'd98884a944e6169912fecfb918c9fa39';
 
 /*
 |--------------------------------------------------------------------------
@@ -245,7 +245,7 @@ $config['encryption_key'] = 'cyeachina.org';
 |
 */
 $config['sess_cookie_name']		= 'token';
-$config['sess_expiration']		= 7200;
+$config['sess_expiration']		= 21600;
 $config['sess_expire_on_close']	= FALSE;
 $config['sess_encrypt_cookie']	= FALSE;
 $config['sess_use_database']	= TRUE;
@@ -328,7 +328,7 @@ $config['compress_output'] = FALSE;
 | regarding date handling.
 |
 */
-$config['time_reference'] = 'local';
+$config['time_reference'] = 'gmt';
 
 
 /*
@@ -357,14 +357,9 @@ $config['rewrite_short_tags'] = FALSE;
 */
 $config['proxy_ips'] = '';
 
-
-$config['mail'] = array();
-$config['mail']['protocol'] = 'smtp';
-$config['mail']['charset'] = 'utf-8';
-$config['mail']['wordwrap'] = FALSE;
-$config['mail']['sender_name'] = '['.$_SERVER['HTTP_HOST'].']';
+date_default_timezone_set("Asia/Shanghai");
 
 /* End of file config.php */
 /* Location: ./application/config/config.php */
-
+require_once(WEBROOT.'/env/domain.php');
 require_once(WEBROOT.'/env/'.$_SERVER['HTTP_HOST'].'/config.php');
