@@ -58,6 +58,18 @@ class MY_Controller extends CI_Controller {
 		}
 	}
 
+	protected function set_meta($key, $value = NULL) {
+		// 保证在设置数据时已经建立meta集合
+		if ($key !== NULL && !isset($this->json_data['meta'])) {
+			$this->json_data['meta'] = array();
+		}
+		if ($value === NULL && is_array($key)) {
+			$this->json_data['meta'] = array_merge($this->json_data['meta'], $key);
+		} else if (is_string($key)) {
+			$this->json_data['meta'][$key] = $value;
+		}
+	}
+
 	protected function set_msg($msg = NULL) {
 		if ($msg) {
 			$this->json_data['msg'] = $msg;
@@ -349,6 +361,14 @@ class Entity_Controller extends MY_Controller {
 		$this->out();
 	}
 
+	protected function remove($query) {
+		if ($this->model->remove($query) === FALSE) {
+			$this->set_status(5);
+		}
+
+		$this->out();
+	}
+
 	protected function _save($id = NULL) {
 		$is_create = !$id;
 
@@ -363,5 +383,33 @@ class Entity_Controller extends MY_Controller {
 		} else {
 			$this->set_status(5);
 		}
+	}
+
+	public function query() {
+		if ($this->check('session', 'permission')) {
+			$input = $this->input->get();
+			$query = array();
+			$options = array();
+
+			if (isset($input['page']) && isset($input['per_page'])) {
+				$options['limit'] = $input['per_page'];
+				$options['offset'] = $input['page'] * $input['per_page'];
+			}
+
+			if (isset($input['sort']) && isset($input['order'])) {
+				$options['sort'] = array($input['sort'] => $input['order']);
+			}
+
+			$data = $this->model->get_all($query, $options);
+
+
+			if (isset($data)) {
+				$this->set_data($data);
+			} else {
+				$this->set_status(5);
+			}
+		}
+
+		$this->json();
 	}
 }

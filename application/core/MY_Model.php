@@ -33,7 +33,9 @@ class Entity_Model extends MY_Model {
 			$columns = $options['columns'];
 		}
 
-		$this->db->where($query);
+		if (isset($query) && count($query)) {
+			$this->db->where($query);
+		}
 		
 		if (isset($options['in'])) {
 			foreach ($options['in'] as $key => $in) {
@@ -61,8 +63,8 @@ class Entity_Model extends MY_Model {
 		// 在主结果集查询结束后再另行查询并拼装join集合
 		if (count($result) && isset($options['join'])) {
 			// => array('foreignKey' => array('ForeignTable', 'foreignTableKey'))
-			foreach ($options['join'] as $key => $on) {
-				$table = $on[0];
+			foreach ($options['join'] as $table => $on) {
+				$key = $on[0];
 				// 防止筛选过列后结果集中没有要join的列
 				// 没有针对AS处理，会有一定风险
 				if (!isset($columns) || in_array($key, $columns)) {
@@ -135,9 +137,9 @@ class Entity_Model extends MY_Model {
 		return $this->get_one($query, $options);
 	}
 
-	function create($entity) {
+	function create($entity, $returnAll = FALSE) {
 		if ($this->db->insert($this->main_table, $entity) !== FALSE) {
-			return $this->db->insert_id();
+			return $returnAll ? $this->get_one($entity) : $this->db->insert_id();
 		}
 		return FALSE;
 	}
@@ -158,7 +160,7 @@ class Entity_Model extends MY_Model {
 	}
 
 	function delete($id, $remove_relation = FALSE) {
-		$success = $this->db->delete($this->main_table, array($this->id_key => $id));
+		$success = $this->remove(array($this->id_key => $id));
 		// if ($this->relation_table) {
 		// 	$success = $success && $this->unlink(array('self' => $id));
 		// }
@@ -179,6 +181,10 @@ class Entity_Model extends MY_Model {
 		}
 
 		return $success;
+	}
+
+	function remove($query) {
+		$this->db->delete($this->main_table, $query);
 	}
 
 	/**
