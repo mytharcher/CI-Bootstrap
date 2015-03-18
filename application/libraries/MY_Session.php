@@ -87,9 +87,9 @@ class MY_Session {
 	function token_get () {
 		$token = $this->CI->input->cookie($this->sess_cookie_name);
 		if (!$token) {
-			$sessid = '';
+			$sessid = time();
 			while (strlen($sessid) < 32) {
-				$sessid .= mt_rand(0, mt_getrandmax());
+				$sessid .= mt_rand(0, 9);
 			}
 			$token = md5($sessid);
 			$this->_set_cookie($token);
