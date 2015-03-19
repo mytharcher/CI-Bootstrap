@@ -179,6 +179,7 @@ if (defined('ENVIRONMENT'))
 	define('WEBROOT', dirname(__FILE__));
 
 	// Env folder name from HTTP_HOST (replace port colon to tilde)
+	// only for IP hostname (may contain port)
 	define('HOST_ENV_NAME', str_replace(':', '~', $_SERVER['HTTP_HOST']));
 
 
