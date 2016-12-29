@@ -8,12 +8,11 @@ class Role extends Entity_Controller {
 		parent::__construct();
 	}
 
-	public function index() {
-		if ($this->check('session', 'permission')) {
-			$data = $this->model->get_all();
-			foreach ($data as $index => $item) {
-				$data[$index]['operationId[]'] = $this->read_relation_index($item['id'], 'Operation_model');
-			}
+	public function query() {
+		if ($this->check('admin', 'permission')) {
+			$data = $this->model->get_all(array(
+				'fetch' => array('Operation' => 1)
+			));
 			$this->set_data($data);
 		}
 
@@ -21,7 +20,7 @@ class Role extends Entity_Controller {
 	}
 
 	public function operations() {
-		if ($this->check('session', 'permission')) {
+		if ($this->check('admin', 'permission')) {
 			$data = $this->model->get_operations();
 			$this->set_data($data);
 		}
@@ -30,14 +29,14 @@ class Role extends Entity_Controller {
 	}
 
 	public function create() {
-		if ($this->check('session', 'permission', 'input')) {
+		if ($this->check('admin', 'permission', 'input')) {
 			$this->_save();
 		}
 		$this->json();
 	}
 
 	public function update($id) {
-		if ($this->check('session', 'permission', 'input')) {
+		if ($this->check('admin', 'permission', 'input')) {
 			$this->_save($id);
 		}
 		$this->json();

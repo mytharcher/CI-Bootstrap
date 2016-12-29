@@ -1,32 +1,57 @@
 <?php if ( ! defined('BASEPATH')) exit('No direct script access allowed');
-
+			
 class MY_Controller extends CI_Controller {
 	
 	var $json_data;
 	var $checked = FALSE;
-	var $session_data = array();
+
 	// 用于在表单验证时，忽略规则中“!key”表示的特定值。
 	// 目前当数据库表有设置唯一字段时，再update对应字段，
 	// 当新值和数据库中该字段值相同时，不认为是重复判定。
 	var $special_input_value;
 
+	var $main_model;
 
 
 	function __construct() {
 		parent::__construct();
 
+		$this->config->load(OAUTH_PROVIDER_WECHAT, TRUE);
+		$wechatConfig = $this->config->item(OAUTH_PROVIDER_WECHAT);
+
 		$this->json_data = array(
-			'status' => 0
+			'status' => 0,
+			'meta' => array(
+				'host' => $_SERVER['HTTP_HOST'],
+				'path' => preg_replace('/^\/+/', '/', uri_string()),
+				'wechatAppId' => $wechatConfig['app_id']
+			)
 		);
 
 		if (!$this->input->is_cli_request()) {
-			$this->load->library('session');
-			$this->get_session();
-			if ($this->session->get_redirect() == $this->uri->uri_string) {
-				$this->session->set_redirect();
+			if (isset($_SESSION['redirect']) && $_SESSION['redirect'] == $_SERVER['REQUEST_URI']) {
+				unset($_SESSION['redirect']);
 			}
+
+			$device = 'desktop';
+
+			$mobile_detector = new Detection\MobileDetect();
+			if ($mobile_detector->isMobile()) {
+				if ($mobile_detector->isTablet()) {
+					$device = 'tablet';
+				} else {
+					$device = 'mobile';
+				}
+			}
+			$this->set_meta('device', $device);
+
+			$this->set_meta('wechat', strpos($_SERVER['HTTP_USER_AGENT'], 'MicroMessenger') !== false);
 		} else {
 			$this->load->database();
+		}
+
+		if (isset($this->main_model)) {
+			$this->load->model($this->main_model, 'model');
 		}
 	}
 
@@ -51,8 +76,12 @@ class MY_Controller extends CI_Controller {
 		if ($key !== NULL && !isset($this->json_data['data'])) {
 			$this->json_data['data'] = array();
 		}
-		if ($value === NULL && is_array($key)) {
-			$this->json_data['data'] = array_merge($this->json_data['data'], $key);
+		if (!isset($value)) {
+			if (is_array($key) && (bool)count(array_filter(array_keys($key), 'is_string'))) {
+				$this->json_data['data'] = array_merge($this->json_data['data'], $key);
+			} else if (isset($key)) {
+				$this->json_data['data'] = $key;
+			}
 		} else if (is_string($key)) {
 			$this->json_data['data'][$key] = $value;
 		}
@@ -76,32 +105,13 @@ class MY_Controller extends CI_Controller {
 		}
 	}
 
-	protected function get_session() {
-		$this->session_data = $this->session->all_userdata();
-		return $this->session_data;
-	}
-
-	protected function set_session($data) {
-		$this->session->set_userdata($data);
-		$this->session_data = $data;
-	}
-
 	// 所有验证的总入库，以参数顺序调用其他验证器。
 	// 过程中每个验证器在失败的适合设定唯一的status码用于前端判断。
 	// e.g.
 	// $this->check('session', 'permission', 'input'); // TRUE/FALSE
 	//
 	// 错误码
-	// 1: 输入数据验证失败
-	// 2: 未登录
-	// 3: 没有操作权限
-	// 4: 返回数据业务错误
-	// 4.1: 未完善注册资料
-	// 4.3: 请求的操作不允许
-	// 4.4: 请求内容不存在
-	// 4.8: 请求超时（订单支付超时）
-	// 5: 服务器或数据库其他错误，未捕获的异常等
-	// 6: 邮件发送失败
+	// 0.2: 请根据地址跳转
 
 	// protected function check () {
 	// 	$this->checked = TRUE;
@@ -135,7 +145,7 @@ class MY_Controller extends CI_Controller {
 	protected function check_input($only = FALSE) {
 		$result = $this->form_validation->run();
 		if ($result === FALSE && !$only){
-			$this->set_status(1);
+			$this->set_status(STATUS_INPUT_INVALID);
 			$this->set_data($this->form_validation->error_array());
 		}
 		return $result;
@@ -143,12 +153,56 @@ class MY_Controller extends CI_Controller {
 
 	// 验证登录状态。错误码：2
 	protected function check_session($only = FALSE) {
-		if (!$this->session_data || !isset($this->session_data['id'])) {
+		if (!isset($_SESSION) || !isset($_SESSION['user'])) {
 			if (!$only) {
-				if (!$this->is_ajax() && !$this->session->get_redirect()) {
-					$this->session->set_redirect($this->uri->uri_string);
+				if (!$this->is_ajax() && !isset($_SESSION['redirect'])) {
+					$_SESSION['redirect'] = $_SERVER['REQUEST_URI'];
 				}
-				$this->set_status(2);
+				$this->set_status(STATUS_NEED_LOGIN);
+			}
+			return FALSE;
+		}
+		return TRUE;
+
+		// if (isset($_SESSION)) {
+		// 	if (isset($_SESSION['user'])) {
+		// 		return TRUE;
+		// 	}
+
+		// 	if (!$only) {
+		// 		if (!$this->is_ajax() && !isset($_SESSION['redirect'])) {
+		// 			$_SESSION['redirect'] = $_SERVER['REQUEST_URI'];
+		// 		}
+		// 	}
+		// 	$this->set_status(STATUS_NEED_LOGIN);
+
+		// 	if (isset($_SESSION['oauth'])) {
+		// 		$this->set_status(STATUS_NEED_LOGIN);	
+		// 	}
+
+		// 	return FALSE;
+		// }
+	}
+
+	protected function check_session_oauth($only = FALSE) {
+		if (!isset($_SESSION) || !isset($_SESSION['oauth'])) {
+			if (!$only) {
+				$this->set_status(STATUS_OAUTH_NEED_LOGIN);
+			}
+			return FALSE;
+		}
+
+		return TRUE;
+	}
+
+	// 验证登录状态。错误码：2
+	protected function check_admin($only = FALSE) {
+		if (!isset($_SESSION) || !isset($_SESSION['admin'])) {
+			if (!$only) {
+				if (!$this->is_ajax() && !isset($_SESSION['redirect'])) {
+					$_SESSION['redirect'] = $_SERVER['REQUEST_URI'];
+				}
+				$this->set_status(STATUS_NEED_LOGIN);
 			}
 			return FALSE;
 		}
@@ -161,7 +215,7 @@ class MY_Controller extends CI_Controller {
 
 		$uri = $this->uri->uri_string();
 		
-		$permissions = $this->role->get_permissions($this->session_data['role']['id']);
+		$permissions = $this->role->get_permissions($_SESSION['admin']['role']['id']);
 
 		foreach ($permissions as $path => $exist) {
 			if ($path == $uri) {
@@ -175,36 +229,26 @@ class MY_Controller extends CI_Controller {
 			}
 		}
 		if (!$only){
-			$this->set_status(3);
+			$this->set_status(STATUS_BIZ_ACTION_NOT_ALLOWED);
 		}
 		return FALSE;
 	}
 
 	// 是否首次登录未完善注册信息。true：已完善，false，未完善
 	// 错误码：4.1
-	protected function check_register($only = FALSE) {
-		$account = $this->session_data;
-		if ($account['role']['id'] != 2 && $account['status']['id'] == 1) {
-			if (!$only) {
-				if (!$this->is_ajax() && !$this->session->get_redirect()) {
-					$this->session->set_redirect($this->uri->uri_string);
-				}
-				$this->set_status(4.1);
-			}
-			return FALSE;
-		}
-		return TRUE;
-	}
-
-	protected function load_meta_data() {
-		$metas = func_get_args();
-		foreach ($metas as $key) {
-			$model = $key.'_model';
-			$this->load->model($model);
-			$data = $this->$model->get_all();
-			$this->set_data($key.'s', $data);
-		}
-	}
+	// protected function check_register($only = FALSE) {
+	// 	$account = $_SESSION['user'];
+	// 	if ($account['role']['id'] != 2 && $account['status']['id'] == 1) {
+	// 		if (!$only) {
+	// 			if (!$this->is_ajax() && !$this->session->get_redirect()) {
+	// 				$this->session->set_redirect($this->uri->uri_string);
+	// 			}
+	// 			$this->set_status(STATUS_ACCOUNT_INFO_NOT_COMPLETED);
+	// 		}
+	// 		return FALSE;
+	// 	}
+	// 	return TRUE;
+	// }
 
 	protected function is_ajax() {
 		$headers = getallheaders(); // For PHP < 5.4 define in server_helper.php;
@@ -213,18 +257,13 @@ class MY_Controller extends CI_Controller {
 
 	protected function render($template, $data = NULL) {
 		$this->set_data($data);
-		$this->set('session', $this->session_data);
+		$this->set('session', $_SESSION);
 		$this->parser->parse($template, $this->json_data);
 	}
 
 	protected function json($data = NULL) {
 		$this->set_data($data);
 		$this->load->view('json', array('json' => $this->json_data));
-	}
-
-	protected function status($status, $data = NULL) {
-		$this->set_status($status);
-		$this->json($data);
 	}
 
 	protected function out($data = NULL, $tpl = '') {
@@ -246,17 +285,17 @@ class MY_Controller extends CI_Controller {
 	}
 
 	protected function out_not_found() {
-		if ($this->is_ajax()) {
-			$this->set_status(4.4);
-			$this->json();
-		} else {
-			show_404();
-		}
+		return $this->out_message(STATUS_BIZ_CONTENT_NOT_EXIST);
 	}
 
-	protected function out_message($status, $message = NULL) {
-		$this->set_status($status);
-		$this->set_msg($message);
+	protected function out_message($status = NULL, $message = NULL) {
+		if (isset($status)) {
+			$this->set_status($status);
+		}
+
+		if (isset($message)) {
+			$this->set_msg($message);
+		}
 
 		if ($this->is_ajax()) {
 			$this->json();
@@ -266,56 +305,32 @@ class MY_Controller extends CI_Controller {
 	}
 
 	protected function redirect($url = '') {
-		$url = preg_replace('/^\/(.*)/', "$1", $url);
-		return redirect('http://'.$_SERVER['HTTP_HOST'].'/'.$url);
-	}
-
-	protected function send_mail($to, $template, $data) {
-		$this->config->load('email', TRUE);
-		$config = $this->config->item('email');
-		$this->load->library('email', $config);
-		// var_dump($config);
-		
-		$this->email->from( $config['smtp_account'], $config['sender_name'] );
-		$this->email->to( $to );
-
-		$subject = $this->parser->parse($template.'.title.tpl', $data, TRUE);
-		$content = $this->parser->parse($template.'.tpl', $data, TRUE);
-		$this->email->subject( $subject );
-		$this->email->message( $content );
-		
-		return $this->email->send();
+		$url = 'http://'.$_SERVER['HTTP_HOST'].'/'.preg_replace('/^\/(.*)/', "$1", $url);
+		if ($this->is_ajax()) {
+			$this->set('redirect', $url);
+			return $this->json();
+		}
+		return redirect($url);
 	}
 }
 
 
 
 class Entity_Controller extends MY_Controller {
-	var $main_model;
 
 	function __construct() {
-
 		parent::__construct();
-
-		if (isset($this->main_model)) {
-			$this->load->model($this->main_model, 'model');
-		}
 	}
 
 	// GET /api/$controller
 	public function index() {
-		if ($this->check('session', 'permission')) {
-			$data = $this->model->get_all();
-			$this->set_data($data);
-		}
-
-		$this->out();
+		return $this->query();
 	}
 
 	// GET /api/$controller/get
 	public function get($id) {
-		if ($this->check('session', 'permission')) {	
-			$data = $this->model->get_one(array('id' => $id));
+		if ($this->check('admin', 'permission')) {	
+			$data = $this->model->get_one(array($this->model->id_key => $id));
 			$this->set_data($data);
 		}
 
@@ -324,13 +339,14 @@ class Entity_Controller extends MY_Controller {
 
 	// POST /api/$controller/create
 	public function create() {
-		if ($this->check('session', 'permission', 'input')) {
+		if ($this->check('admin', 'permission', 'input')) {
 			$data = $this->input->post();
 			$id = $this->model->create($data);
+			
 			if ($id) {
-				$this->set_data(array('id' => $id));
+				$this->set_data(array($this->model->id_key => $id));
 			} else {
-				$this->set_status(1);
+				$this->set_status(STATUS_SERVER_EXCEPTION);
 			}
 		}
 
@@ -340,10 +356,10 @@ class Entity_Controller extends MY_Controller {
 	// POST /api/$controller/update/:id
 	public function update($id) {
 		$this->special_input_value = $id;
-		if ($this->check('session', 'permission', 'input')) {
+		if ($this->check('admin', 'permission', 'input')) {
 			$data = $this->input->post();
 			if ($this->model->update($id, $data) === FALSE) {
-				$this->set_status(1);
+				$this->set_status(STATUS_SERVER_EXCEPTION);
 			}
 		}
 
@@ -352,9 +368,9 @@ class Entity_Controller extends MY_Controller {
 
 	// POST /api/$controller/delete/:id
 	public function delete($id) {
-		if ($this->check('session', 'permission')) {
+		if ($this->check('admin', 'permission')) {
 			if ($this->model->delete($id) === FALSE) {
-				$this->set_status(5);
+				$this->set_status(STATUS_SERVER_EXCEPTION);
 			}
 		}
 
@@ -363,7 +379,7 @@ class Entity_Controller extends MY_Controller {
 
 	protected function remove($query) {
 		if ($this->model->remove($query) === FALSE) {
-			$this->set_status(5);
+			$this->set_status(STATUS_SERVER_EXCEPTION);
 		}
 
 		$this->out();
@@ -378,35 +394,52 @@ class Entity_Controller extends MY_Controller {
 
 		if ($id) {
 			if ($is_create) {
-				$this->set_data(array('id' => $id));
+				$this->set_data(array($this->model->id_key => $id));
 			}
 		} else {
-			$this->set_status(5);
+			$this->set_status(STATUS_SERVER_EXCEPTION);
 		}
 	}
 
 	public function query() {
-		if ($this->check('session', 'permission')) {
+		if ($this->check('admin', 'permission')) {
 			$input = $this->input->get();
-			$query = array();
+			if (!$input) {
+				$input = array();
+			}
 			$options = array();
 
-			if (isset($input['page']) && isset($input['per_page'])) {
-				$options['limit'] = $input['per_page'];
-				$options['offset'] = $input['page'] * $input['per_page'];
+			if (isset($input['query'])) {
+				$options['query'] = $input['query'];
+				log_message('debug', $input['query']);
+				unset($input['query']);
+			}
+
+			if (isset($input['page']) && isset($input['perPage'])) {
+				$options['limit'] = $input['perPage'];
+				$options['offset'] = ($input['page'] - 1) * $input['perPage'];
+
+				unset($input['page']);
+				unset($input['perPage']);
+
+				$this->set('pager', array(
+					'total' => $this->model->count_all($input, $options)
+				));
 			}
 
 			if (isset($input['sort']) && isset($input['order'])) {
 				$options['sort'] = array($input['sort'] => $input['order']);
+
+				unset($input['sort']);
+				unset($input['order']);
 			}
 
-			$data = $this->model->get_all($query, $options);
-
+			$data = $this->model->get_all($input, $options);
 
 			if (isset($data)) {
 				$this->set_data($data);
 			} else {
-				$this->set_status(5);
+				$this->set_status(STATUS_SERVER_EXCEPTION);
 			}
 		}
 

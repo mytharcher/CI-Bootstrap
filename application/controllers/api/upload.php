@@ -3,7 +3,7 @@
 class Upload extends Entity_Controller {
 	var $main_model = 'Upload_model';
 
-	public function index() {
+	public function query() {
 		if ($this->check('session', 'permission')) {
 			$data = $this->model->get_all(array(), array(
 				'sort' => array('date' => 'desc')
@@ -24,14 +24,14 @@ class Upload extends Entity_Controller {
 			$this->load->library('upload', $this->config->item('upload'));
 
 			if ( ! $this->upload->do_upload() ) {
-				$this->set_status(5);
+				$this->set_status(STATUS_SERVER_EXCEPTION);
 				$this->set_data($this->upload->error_msg);
 			} else {
 				$data = $this->upload->data();
 				$record = array(
-					'accountId' => $this->session_data['id'],
+					'accountId' => $_SESSION['user']['id'],
 					'date'      => date('Y-m-d G:i:s'),
-					'url'       => "/$upload_base/".$data['file_name'],
+					'url'       => "$upload_base/".$data['file_name'],
 					'mime'      => $data['file_type'],
 					'isImage'   => intval($data['is_image']),
 					'width'     => $data['image_width'],
@@ -41,7 +41,7 @@ class Upload extends Entity_Controller {
 				$id = $this->model->create($record);
 
 				if (!$id) {
-					$this->set_status(5);
+					$this->set_status(STATUS_SERVER_EXCEPTION);
 					unlink($data['full_path']);
 				} else {
 					$record['id'] = $id;
@@ -65,12 +65,12 @@ class Upload extends Entity_Controller {
 			if ($this->model->delete_batch($ids, $remove_links)) {
 				foreach ($files as $file) {
 					$path = $file['url'];
-					if (!unlink(WEBROOT."$path")) {
-						$this->set_status(5);
+					if (!unlink(FCPATH."$path")) {
+						$this->set_status(STATUS_SERVER_EXCEPTION);
 					}
 				}
 			} else {
-				$this->set_status(5);
+				$this->set_status(STATUS_SERVER_EXCEPTION);
 			}
 		}
 

@@ -7,32 +7,18 @@ class MY_Model extends CI_Model {
 }
 
 class Entity_Model extends MY_Model {
-	var $main_table;
-	var $id_key = 'id';
+	public $main_table;
+	public $id_key = 'id';
 
-	var $search_key = 'name';
+	public $search_keys = array();
 
 	var $relations;
 
 	function __construct () {
 		parent::__construct();
 	}
-	
-	function get_one($query = array(), $options = array()) {
-		$options['limit'] = 1;
-		$result = $this->get_all($query, $options);
-		if (count($result)) {
-			return $result[0];
-		}
-		return NULL;
-	}
 
-	function get_all($query = array(), $options = array()) {
-		if (isset($options['columns'])) {
-			$this->db->select(implode(',', $options['columns']));
-			$columns = $options['columns'];
-		}
-
+	private function filter($query = array(), $options = array()) {
 		if (isset($query) && count($query)) {
 			$this->db->where($query);
 		}
@@ -44,11 +30,45 @@ class Entity_Model extends MY_Model {
 				}
 			}
 		}
+
+		if (isset($options['query'])) {
+			foreach ($this->search_keys as $key) {
+				$this->db->or_like($key, $options['query']);
+			}
+		}
+
 		if (isset($options['like'])) {
 			foreach ($options['like'] as $key => $value) {
 				$this->db->like($key, $value);
 			}
 		}
+	}
+	
+	function get_one($query = array(), $options = array()) {
+		$options['limit'] = 1;
+		$result = $this->get_all($query, $options);
+		if (count($result)) {
+			return $result[0];
+		}
+		return NULL;
+	}
+
+	function count_all($query = array(), $options = array()) {
+		$this->filter($query, $options);
+
+		$count = $this->db->select('COUNT(*) as count')->get($this->main_table)->first_row()->count;
+		log_message('debug', $this->db->last_query());
+		return $count;
+	}
+
+	function get_all($query = array(), $options = array()) {
+		if (isset($options['columns'])) {
+			$this->db->select(implode(',', $options['columns']));
+			$columns = $options['columns'];
+		}
+
+		$this->filter($query, $options);
+		
 		if (isset($options['limit'])) {
 			$offset = isset($options['offset']) ? $options['offset'] : 0;
 			$this->db->limit($options['limit'], $offset);
@@ -58,48 +78,110 @@ class Entity_Model extends MY_Model {
 				$this->db->order_by($column, $order);
 			}
 		}
-		$result = $this->db->get($this->main_table)->result_array();
+		if (isset($options['group'])) {
+			$this->db->group_by($options['group']);
+		}
+
+		$db_query = $this->db->get($this->main_table);
+
+		$result = $db_query->result_array();
+		$length = $db_query->num_rows();
 
 		// 在主结果集查询结束后再另行查询并拼装join集合
-		if (count($result) && isset($options['join'])) {
-			// => array('foreignKey' => array('ForeignTable', 'foreignTableKey'))
-			foreach ($options['join'] as $table => $on) {
-				$key = $on[0];
-				// 防止筛选过列后结果集中没有要join的列
-				// 没有针对AS处理，会有一定风险
-				if (!isset($columns) || in_array($key, $columns)) {
-					$ons = array_map(function ($item) use ($key) {
-						return isset($item[$key]) ? $item[$key] : NULL;
-					}, $result);
-					$ons = array_filter($ons, function ($item) {
-						return $item !== NULL;
-					});
-					$ons = array_unique($ons);
+		if ($length) {
+			if (isset($options['join'])) {
+				// => array('foreignKey' => array('ForeignTable', 'foreignTableKey'))
+				foreach ($options['join'] as $table => $on) {
+					$key = $on[0];
+					// 防止筛选过列后结果集中没有要join的列
+					// 没有针对AS处理，会有一定风险
+					if (!isset($columns) || in_array($key, $columns)) {
+						$ons = array_map(function ($item) use ($key) {
+							return isset($item[$key]) ? $item[$key] : NULL;
+						}, $result);
+						$ons = array_filter($ons, function ($item) {
+							return $item !== NULL;
+						});
+						$ons = array_unique($ons);
 
-					if (count($ons)) {
-						$this->db->where_in($on[1], $ons);
-	
-						$join = $this->db->get($table)->result_array();
-						$join_map = array();
-						foreach ($join as $index => $item) {
-							$join_map[$item[$on[1]]] = $item;
-						}
-	
-						foreach ($result as $index => $item) {
-							if (isset($item[$key])) {
-								$foreign = $item[$key];
-								if (isset($join_map[$foreign])) {
-									$item[preg_replace('/Id$/', '', $key)] = $join_map[$foreign];
-									$result[$index] = $item;
+						if (count($ons)) {
+							$this->db->where_in($on[1], $ons);
+		
+							$join = $this->db->get($table)->result_array();
+							$join_map = array();
+							foreach ($join as $index => $item) {
+								$join_map[$item[$on[1]]] = $item;
+							}
+
+							foreach ($result as $index => $item) {
+								if (isset($item[$key])) {
+									$foreign = $item[$key];
+									if (isset($join_map[$foreign])) {
+										$item[preg_replace('/Id$/', '', $key)] = $join_map[$foreign];
+										$result[$index] = $item;
+									}
 								}
 							}
 						}
+	
 					}
+	
+				}
+			}
 
+			// join 解决一对一和一对多，fetch 解决多对多
+			if (isset($options['fetch'])) {
+				$id_key = $this->id_key;
+				$ids = array_map(function ($item) use ($id_key) {
+					return isset($item[$id_key]) ? $item[$id_key] : NULL;
+				}, $result);
+
+				$map = array();
+				foreach ($result as $item) {
+					$map[$item[$this->id_key]] = $item;
 				}
 
+				$result = array();
+
+				$relations = $this->read_relations($ids, $options['fetch']);
+
+				foreach ($this->relations as $table => $key) {
+					$data_key = $options['fetch'][$table] == 1 ? preg_replace('/Id$/', '', $key) : $key;
+					if (!isset($relations[$data_key])) {
+						continue;
+					}
+					
+					// array('timeRange' => array(
+					// 	'<categoryId>' => array(
+					// 		array(),
+					// 		array()
+					// 	)
+					// ))
+					foreach ($relations[$data_key] as $index => $items) {
+						$map[$index][$data_key.'[]'] = $items;
+					}
+
+					foreach ($map as $index => $item) {
+						if (!isset($item[$data_key.'[]'])) {
+							$item[$data_key.'[]'] = array();
+						}
+						array_push($result, $item);
+					}
+				}
 			}
 		}
+
+		return $result;
+	}
+
+	function get_all_map($query = array(), $options = array()) {
+		$result = array();
+		$data = $this->get_all($query, $options);
+
+		foreach ($data as $item) {
+			$result[$item[$this->id_key]] = $item;
+		}
+
 		return $result;
 	}
 
@@ -139,7 +221,7 @@ class Entity_Model extends MY_Model {
 
 	function create($entity, $returnAll = FALSE) {
 		if ($this->db->insert($this->main_table, $entity) !== FALSE) {
-			return $returnAll ? $this->get_one($entity) : $this->db->insert_id();
+			return $returnAll ? $this->get_one($entity) : ($this->db->insert_id() || $entity[$this->id_key]);
 		}
 		return FALSE;
 	}
@@ -161,9 +243,6 @@ class Entity_Model extends MY_Model {
 
 	function delete($id, $remove_relation = FALSE) {
 		$success = $this->remove(array($this->id_key => $id));
-		// if ($this->relation_table) {
-		// 	$success = $success && $this->unlink(array('self' => $id));
-		// }
 		if ($remove_relation && $this->relations && count($this->relations)) {
 			foreach ($this->relations as $table => $foreign_key) {
 				$success = $success && $this->unlink($table, array('self' => $id));
@@ -225,30 +304,55 @@ class Entity_Model extends MY_Model {
 		return $is_create ? $id : $success;
 	}
 
-	function read_relations($id, $full = FALSE) {
+	function read_relations($ids, $tables) {
 		$result = NULL;
+
+		// [1,2,3]
+		$ids = is_array($ids) ? $ids : array($ids);
+
+		// var $relations = array(
+		// 	'CategoryTimeRange' => 'timeRangeId'
+		// );
 		if ($this->relations) {
 			$result = array();
-			$id_key = $this->id_key != 'id' ?
-				$this->id_key :
-				lcfirst($this->main_table).ucfirst($this->id_key);
+			// categoryId
+			$id_key = $this->id_key == 'id' ?
+				lcfirst($this->main_table).ucfirst($this->id_key) :
+				$this->id_key;
+
 			foreach ($this->relations as $table => $key) {
-				$result[$key] = array_map(function($item) use ($key) {
-					return $item[$key];
-				}, $this->db->get_where($table, array(
-					$id_key => $id
-				))->result_array());
-				if ($full) {
+				if (!isset($tables[$table])) {
+					continue;
+				}
+
+				// timeRangeId
+				$table_key = $key;
+
+				// categoryId = [1,2,3]
+				$this->db->where_in($id_key, $ids);
+
+				// 'fetch' => array('ForeignTable' => not 1)
+				// for 1 as fetch data, 0 for just ids
+				if ($tables[$table]) {
+					// 'fetch' => array('ForeignTable' => 1)
+					// timeRange
 					$table_key = preg_replace('/Id$/', '', $key);
+					// TimeRange
 					$foreign_table = ucfirst($table_key);
-					$result[$table_key] = count($result[$key]) ?
-						$this->db->where_in('id', $result[$key])
-						->get($foreign_table)
-						->result_array() :
-						array();
+					// join TimeRange on TimeRange.id=CategoryTimeRange.timeRangeId
+					$this->db->join($foreign_table, $foreign_table.'.id'.'='.$table.'.'.$key);
+				}
+
+				$data = $this->db->get($table)->result_array();
+
+				$result[$table_key] = array();
+
+				foreach ($data as $item) {
+					$result[$table_key][$item[$id_key]][] = $tables[$table] ? $item : $item[$table_key];
 				}
 			}
 		}
+
 		return $result;
 	}
 
@@ -278,10 +382,12 @@ class Entity_Model extends MY_Model {
 		return $success;
 	}
 
-	function search_all($keyword, $options = array()) {
-		$options['like'] = array($this->search_key => $keyword);
-		$result = $this->get_all(array(), $options);
-		return $result;
+	function search_all($keyword, $query = array(), $options = array()) {
+		$options['like'] = array();
+		foreach ($this->search_keys as $key) {
+			$options['like'][] = array($key => $keyword);
+		}
+		return $this->get_all($query, $options);
 	}
 
 	function link($table, $links) {
@@ -360,7 +466,7 @@ class Entity_Model extends MY_Model {
 	}
 
 	function pagination(&$list, $options = array()) {
-		$per_page = isset($options['per_page']) ? $options['per_page'] : 10;
+		$per_page = isset($options['perPage']) ? $options['perPage'] : 10;
 		$offset = (isset($options['page']) ? $options['page'] : 0) * $per_page;
 		$limit = isset($options['limit']) ? $options['limit'] : $per_page;
 		$count = count($list);

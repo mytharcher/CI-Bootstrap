@@ -2,4 +2,6 @@
 
 $config['oauth2'] = array();
 
-require_once(WEBROOT.'/env/'.HOST_ENV_NAME.'/oauth2.php');
+if (file_exists(FCPATH.'env/'.HOST_ENV_NAME.'/oauth2.php')) {
+	require_once(FCPATH.'env/'.HOST_ENV_NAME.'/oauth2.php');
+}

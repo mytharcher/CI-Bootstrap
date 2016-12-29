@@ -10,4 +10,8 @@ application/logs/*
 !application/logs/.htaccess
 
 env/
+
+composer.lock
+vendor/
+
 temp-build/

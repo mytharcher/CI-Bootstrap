@@ -1,0 +1,3 @@
+[submodule "assets/vendors/pluralize"]
+	path = assets/vendors/pluralize
+	url = https://github.com/blakeembrey/pluralize.git

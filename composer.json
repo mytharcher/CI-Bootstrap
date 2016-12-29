@@ -4,10 +4,14 @@
 	"homepage": "http://tangkids.me",
 	"license": "MIT",
 	"require": {
-		"php": "~5.5",
-		"codeigniter/framework": "~3.0",
-		"smarty/smarty": "~3.1",
+		"php": ">=5.5",
+
+		"codeigniter/framework": "~3.1",
+		"ezyang/htmlpurifier": "dev-master",
 		"mobiledetect/mobiledetectlib": "^2.8",
-		"mytharcher/alipay-php-sdk": "dev-master"
+		"mytharcher/alipay-php-sdk": "dev-master",
+		"overtrue/wechat": "3.1.5",
+		"rmccue/requests": "^1.6",
+		"smarty/smarty": "3.1.29"
 	}
 }

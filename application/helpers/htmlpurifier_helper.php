@@ -15,50 +15,40 @@
  * @param   string
  * @return  string or array
  */
-if (! function_exists('html_purify'))
-{
-        function html_purify($dirty_html, $config = FALSE)
-        {
-                require_once APPPATH . 'third_party/htmlpurifier/HTMLPurifier.standalone.php';
+if (! function_exists('html_purify')) {
+	function html_purify($dirty_html, $config = FALSE) {
+		if (is_array($dirty_html)) {
+			foreach ($dirty_html as $key => $val) {
+				$clean_html[$key] = html_purify($val, $config);
+			}
+		} else {
+			switch ($config) {
+				case 'comment':
+					$config = HTMLPurifier_Config::createDefault();
+					$config->set('Core.Encoding', 'utf-8');
+					$config->set('HTML.Doctype', 'XHTML 1.0 Strict');
+					$config->set('HTML.Allowed', 'p,a[href|title],abbr[title],acronym[title],b,strong,blockquote[cite],code,em,i,strike');
+					$config->set('AutoFormat.AutoParagraph', TRUE);
+					$config->set('AutoFormat.Linkify', TRUE);
+					$config->set('AutoFormat.RemoveEmpty', TRUE);
+					break;
 
-                if (is_array($dirty_html))
-                {
-                        foreach ($dirty_html as $key => $val)
-                        {
-                                $clean_html[$key] = html_purify($val, $config);
-                        }
-                }
+				case FALSE:
+					$config = HTMLPurifier_Config::createDefault();
+					$config->set('Core.Encoding', 'utf-8');
+					$config->set('HTML.Doctype', 'XHTML 1.0 Strict');
+					break;
 
-                else
-                {
-                        switch ($config)
-                        {
-                                case 'comment':
-                                        $config = HTMLPurifier_Config::createDefault();
-                                        $config->set('Core.Encoding', 'utf-8');
-                                        $config->set('HTML.Doctype', 'XHTML 1.0 Strict');
-                                        $config->set('HTML.Allowed', 'p,a[href|title],abbr[title],acronym[title],b,strong,blockquote[cite],code,em,i,strike');
-                                        $config->set('AutoFormat.AutoParagraph', TRUE);
-                                        $config->set('AutoFormat.Linkify', TRUE);
-                                        $config->set('AutoFormat.RemoveEmpty', TRUE);
-                                        break;
+				default:
+					show_error('The HTMLPurifier configuration labeled "' . htmlentities($config, ENT_QUOTES, 'UTF-8') . '" could not be found.');
+			}
 
-                                case FALSE:
-                                        $config = HTMLPurifier_Config::createDefault();
-                                        $config->set('Core.Encoding', 'utf-8');
-                                        $config->set('HTML.Doctype', 'XHTML 1.0 Strict');
-                                        break;
+			$purifier = new HTMLPurifier($config);
+			$clean_html = $purifier->purify($dirty_html);
+		}
 
-                                default:
-                                        show_error('The HTMLPurifier configuration labeled "' . htmlentities($config, ENT_QUOTES, 'UTF-8') . '" could not be found.');
-                        }
-
-                        $purifier = new HTMLPurifier($config);
-                        $clean_html = $purifier->purify($dirty_html);
-                }
-
-                return $clean_html;
-        }
+		return $clean_html;
+	}
 }
 
 /* End of htmlpurifier_helper.php */

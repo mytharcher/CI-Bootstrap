@@ -6,45 +6,50 @@
  * Smarty templating for Codeigniter
  *
  * @package   CI Smarty
- * @author       Dwayne Charrington
- * @copyright  2013 Dwayne Charrington and Github contributors
- * @link            http://ilikekillnerds.com
- * @license     http://www.apache.org/licenses/LICENSE-2.0.html
- * @version     2.0
+ * @author    Dwayne Charrington
+ * @copyright 2015 Dwayne Charrington and Github contributors
+ * @link      http://ilikekillnerds.com
+ * @license   MIT
+ * @version   3.0
  */
 
 // Smarty caching enabled by default unless explicitly set to FALSE
-$config['cache_status']         = FALSE;
+$config['smarty.cache_status'] = FALSE;
 
 // The path to the themes
 // Default is implied root directory/themes/
-$config['theme_path'] = 'themes/';
+$config['smarty.theme_path'] = 'themes/';
 
 // The default name of the theme to use (this can be overridden)
-$config['theme_name'] = "default";
+$config['smarty.theme_name'] = "default";
 
 // Cache lifetime. Default value is 3600 seconds (1 hour) Smarty's default value
-$config['cache_lifetime']       = 3600;
+$config['smarty.cache_lifetime'] = 3600;
 
 // Where templates are compiled
-$config['compile_directory']    = APPPATH."cache/smarty/compiled/";
+$config['smarty.compile_directory'] = APPPATH."cache/smarty/compiled/";
 
 // Where templates are cached
-$config['cache_directory']      = APPPATH."cache/smarty/cached/";
+$config['smarty.cache_directory'] = APPPATH."cache/smarty/cached/";
 
 // Where Smarty configs are located
-$config['config_directory']     = APPPATH."third_party/Smarty/configs/";
+$config['smarty.config_directory'] = APPPATH."third_party/Smarty/configs/";
+
+// Where custom Smarty plugins are located
+$config['smarty.plugins_directory'] = APPPATH."third_party/Smarty/plugins/";
 
 // Default extension of templates if one isn't supplied
-$config['template_ext']         = 'tpl';
+$config['smarty.template_ext'] = 'tpl';
 
 // Error reporting level to use while processing templates
-$config['template_error_reporting'] = E_ALL & ~E_NOTICE;
+$config['smarty.template_error_reporting'] = E_ALL & ~E_NOTICE;
 
 // Debug mode turned on or off (TRUE / FALSE)
-$config['smarty_debug'] = FALSE;
+$config['smarty.smarty_debug'] = FALSE;
 
 // For reuse front-end component templates in Smarty
-$config['front_path'] = WEBROOT.'/assets/tpl';
+$config['smarty.front_path'] = FCPATH.'assets/tpl';
 
-require_once(WEBROOT.'/env/'.HOST_ENV_NAME.'/smarty.php');
+if (file_exists(FCPATH.'env/'.HOST_ENV_NAME.'/smarty.php')) {
+	require_once(FCPATH.'env/'.HOST_ENV_NAME.'/smarty.php');
+}

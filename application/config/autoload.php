@@ -116,7 +116,11 @@ $autoload['model'] = array();
 /* Location: ./application/config/autoload.php */
 
 $autoload['libraries'][] = 'parser';
+$autoload['libraries'][] = 'session';
 $autoload['libraries'][] = 'form_validation';
 
 $autoload['helper'][] = 'url';
 $autoload['helper'][] = 'server';
+$autoload['helper'][] = 'validator';
+
+// $autoload['language'][] = 'form_validation';
