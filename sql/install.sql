@@ -8,7 +8,6 @@
 -- PHP Version: 5.4.30
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
-SET time_zone = "+08:00";
 
 -- --------------------------------------------------------
 
@@ -114,24 +113,6 @@ CREATE TABLE IF NOT EXISTS `Session` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 -- --------------------------------------------------------
-
---
--- Table structure for table `Status`
---
-
-CREATE TABLE IF NOT EXISTS `Status` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `name` varchar(16) NOT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=MyISAM  DEFAULT CHARSET=utf8 AUTO_INCREMENT=3 ;
-
---
--- Dumping data for table `Status`
---
-
-INSERT INTO `Status` (`id`, `name`) VALUES
-(2, '正常'),
-(1, '未完善资料');
 
 -- --------------------------------------------------------
 
